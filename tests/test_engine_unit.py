@@ -16,6 +16,38 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 
+def test_auto_tile_sizes():
+    """自动分块决策：小图不分块，大图按显存开 VAE 分块（防 OOM 回归）。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    auto = VOSR2Engine._auto_tile_sizes
+    # 小输出（<=512）：完全不分块
+    assert auto(256, 10.8, 0, 0) == (0, 0)
+    assert auto(512, 10.8, 0, 0) == (0, 0)
+    # 1024² 输出：开 DiT 分块，VAE 仍整图（阈值 1024 不含）
+    assert auto(1024, 10.8, 0, 0) == (512, 0)
+    # 3096² 输出（774x774 @4x，用户实测 OOM 尺寸）：两级分块全开
+    assert auto(3096, 10.8, 0, 0) == (512, 512)
+    # 大显存（>16GB）：VAE 分块放宽到 1024
+    assert auto(3096, 24.0, 0, 0) == (512, 1024)
+    # 用户显式指定优先
+    assert auto(3096, 10.8, 256, 1024) == (256, 1024)
+
+
+def test_preflight_output_cap():
+    """输出边长超上限时抛 ValueError，且消息带可操作建议。"""
+    import pytest
+
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    engine = VOSR2Engine("VOSR2", "/tmp/whatever", max_output_side=6144)
+    assert engine._preflight_output(774, 4) == 3096  # 正常尺寸不拦
+    with pytest.raises(ValueError, match="降低放大倍率"):
+        engine._preflight_output(2000, 4)  # 8000 > 6144
+    with pytest.raises(ValueError, match="×3"):
+        engine._preflight_output(2000, 4)  # 建议倍率 = 6144//2000 = 3
+
+
 def test_project_root_resolution():
     """PROJECT_ROOT 必须指向仓库根（含 config.yaml 与 app/），防路径层级写错。
 

@@ -65,19 +65,21 @@
                         <div class="sv-form-item">
                             <label>{{ t('restore.tile_size') }}</label>
                             <select class="sv-form-control" id="paramTile">
-                                <option value="0">{{ t('restore.tile.off') }}</option>
-                                <option value="512" selected>512</option>
+                                <option value="0" selected>{{ t('restore.tile.auto') }}</option>
+                                <option value="512">512</option>
                                 <option value="256">256</option>
                             </select>
                         </div>
                         <div class="sv-form-item">
                             <label>{{ t('restore.vae_tile_size') }}</label>
                             <select class="sv-form-control" id="paramVaeTile">
-                                <option value="0" selected>{{ t('restore.tile.off') }}</option>
+                                <option value="0" selected>{{ t('restore.tile.auto') }}</option>
                                 <option value="1024">1024</option>
+                                <option value="512">512</option>
                             </select>
                         </div>
                     </div>
+                    <p class="sv-form-hint" style="margin-top:10px;">{{ t('restore.tile_hint') }}</p>
                     <div class="sv-form-actions">
                         <button class="sv-btn sv-btn-primary" id="btnStart" disabled>
                             <i class="bi bi-lightning-charge"></i> {{ t('restore.start') }}

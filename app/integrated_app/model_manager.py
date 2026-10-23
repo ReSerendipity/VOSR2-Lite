@@ -114,12 +114,22 @@ class ModelManager:
         if self._engine is not None:
             self._engine.unload()
         device = self.config.get("model.device", "auto")
+        max_output_side = self.config.get("inference.max_output_side", None)
         self._engine = VOSR2Engine(name, self.model_root, device=device,
-                                   progress_cb=progress_cb)
+                                   progress_cb=progress_cb,
+                                   max_output_side=max_output_side)
         self._engine.load()
         self._engine_name = name
         self._last_used = time.time()
         return self._engine
+
+    def unload_engine(self) -> None:
+        """强制卸载当前引擎（任务失败 / OOM 恢复时调用，释放显存）。"""
+        if self._engine is not None:
+            self._engine.unload()
+            self._engine = None
+            self._engine_name = ""
+            logger.info("引擎已强制卸载")
 
     def unload_if_idle(self) -> bool:
         if (self._engine is not None and self.idle_unload_minutes > 0

@@ -53,11 +53,14 @@ inference:
   default_align_method: wavelet
   default_seed: 42
   default_steps: 1
-  # DiT 分块（像素，0 = 关闭）；输出边长超过该值建议开启
+  # 分块尺寸（0=自动：引擎按输出边长与可用显存决策，大图自动开分块防 OOM；
+  # 2026-10-23 实测 3096² 全图 VAE 编码必爆 12GB 显存，已改自动分块）
   default_tile_size: 0
   tile_overlap: 32
-  # VAE 分块（像素，0 = 整图）；仅极端大图需要
   default_vae_tile_size: 0
+  # 输出边长硬上限（像素）。超过直接报错并建议降低倍率，避免产生
+  # 数小时且必然 OOM 的任务。
+  max_output_side: 6144
   # 颜色对齐方式: wavelet | adain | nofix
   align_methods:
   - wavelet

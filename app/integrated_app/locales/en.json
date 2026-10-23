@@ -87,8 +87,10 @@
     "seed": "Seed (-1 = random)",
     "tile_size": "DiT tile size (px)",
     "tile": {
+      "auto": "Auto (recommended)",
       "off": "Off"
     },
+    "tile_hint": "With tiling on Auto, the engine enables tiling based on output size and VRAM to prevent OOM on large images. Output side is capped at 6144px; lower the upscale factor if exceeded.",
     "vae_tile_size": "VAE tile size (px)",
     "start": "Start restore",
     "need_file": "Select an image first",

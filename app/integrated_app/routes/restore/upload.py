@@ -140,6 +140,15 @@ async def _run_restore_task(
 
     except Exception as exc:
         logger.exception(f"任务失败: {task_id}")
+        # OOM 等 CUDA 错误后上下文可能中毒：卸载引擎释放显存，
+        # 给后续任务一次干净的重载机会（模型会再次懒加载）。
+        if "out of memory" in str(exc).lower() or "cuda" in str(exc).lower():
+            try:
+                model_manager.unload_engine()
+                logger.warning("检测到 CUDA 错误，已卸载引擎释放显存；"
+                               "如下个任务仍失败请重启服务")
+            except Exception:
+                pass
         await common.update_task_state(
             task_id, history_db, status="failed",
             error=str(exc), message="修复失败",

@@ -66,7 +66,9 @@
 | 问题 | 解决 |
 |---|---|
 | 模型文件未找到 | 运行 `python scripts/download_model.py`；权重须在 `model/` 根下并按上游目录结构摆放 |
-| 显存不足（OOM） | 调小「DiT 分块」为 256；或换 `VOSR_0.5B_os`；超大图再开 VAE 分块 |
+| 显存不足（OOM） | 分块保持「自动」：引擎按输出尺寸与显存自动开启 DiT/VAE 分块（3096² 输出实测可跑）；仍 OOM 可手动把 VAE 分块调 512、或换 `VOSR_0.5B_os` |
+| 输出过大被拒 | 输出边长上限 6144px（`config.yaml` `inference.max_output_side`）；超限会提示本图最高倍率，降低倍率或裁剪后重试 |
+| `install.bat` 装 PyTorch 失败 | 手动执行 `pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128`；注意本机 pip 若配了镜像 extra-index，CPU 版会顶包，需加 `PIP_CONFIG_FILE=NUL` |
 | 端口被占用 | 应用自动顺延到下一个可用端口，以日志打印地址为准 |
 | HuggingFace 下载慢 | `set HF_ENDPOINT=https://hf-mirror.com` 后重跑下载脚本 |
 
