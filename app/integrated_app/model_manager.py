@@ -14,19 +14,19 @@ from dataclasses import dataclass, field
 
 from loguru import logger
 
-# 每个 checkpoint 运行所需的最小文件集（相对 model_root）
+# 每个 checkpoint 运行所需的最小文件集（相对 model_root）。
+# DINOv2 只凭权重文件即可加载（架构已在 vosr/models/dinov2_vitl14.py 本地
+# vendored，2026-10-23 起不再需要 clone facebookresearch/dinov2 仓库）。
 _REQUIRED_COMMON_QWEN = [
     "Qwen-Image-vae-2d/config.json",
     "Qwen-Image-vae-2d/diffusion_pytorch_model.safetensors",
     "torch_cache/checkpoints/dinov2_vitl14_pretrain.pth",
-    "torch_cache/facebookresearch_dinov2_main/hubconf.py",
 ]
 _REQUIRED_COMMON_SD2 = [
     "stable-diffusion-2-1-base/vae/config.json",
     "stable-diffusion-2-1-base/vae/diffusion_pytorch_model.safetensors",
     "sd21_lwdecoder.pth",
     "torch_cache/checkpoints/dinov2_vitb14_pretrain.pth",
-    "torch_cache/facebookresearch_dinov2_main/hubconf.py",
 ]
 _REQUIRED_CKPT = [
     "{name}/args.json",

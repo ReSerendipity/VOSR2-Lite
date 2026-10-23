@@ -41,11 +41,27 @@ if _PROJECT_ROOT not in sys.path:
 from vosr import tiled_vae  # noqa: E402
 from vosr.vosr import VOSR  # noqa: E402
 
+_pad_to_multiple = tiled_vae._pad_to_multiple  # 8 倍数补齐（VAE 对齐）
+
 
 def _empty_cache() -> None:
     """阶段间释放未使用的显存（编码激活 / 解码中间量）。"""
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+
+def _pad_to_square(x: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
+    """reflect 填充到正方形（上游 forward_flexible 的 H==W 断言要求）。
+
+    Returns: (padded, (orig_h, orig_w))
+    """
+    _, _, h, w = x.shape
+    side = max(h, w)
+    if h == side and w == side:
+        return x, (h, w)
+    padded = torch.nn.functional.pad(
+        x, (0, side - w, 0, side - h), mode="reflect")
+    return padded, (h, w)
 
 
 IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
@@ -263,51 +279,31 @@ class VOSR2Engine:
         return vae.to(dev).eval()
 
     def _load_dinov2(self, args, dev):
-        """从 model/torch_cache 离线加载 DINOv2（行为对齐上游 torch.hub 调用）。"""
-        # enc_type -> (hub 入口名, 权重文件名前缀)。注意 HF 上的权重文件是
-        # dinov2_vitl14_pretrain.pth 而非 dinov2l_pretrain.pth（2026-10-23 实测坑）。
-        vit_map = {
-            "dinov2b": "dinov2_vitb14",
-            "dinov2l": "dinov2_vitl14",
-            "dinov2g": "dinov2_vitg14",
-        }
-        vit = vit_map[args.enc_type]
-        hub_dir = os.path.join(self.model_root, "torch_cache")
-        repo_dir = os.path.join(hub_dir, "facebookresearch_dinov2_main")
-        ckpt = os.path.join(hub_dir, "checkpoints", f"{vit}_pretrain.pth")
-        if not os.path.isdir(repo_dir) or not os.path.isfile(ckpt):
+        """从 model/torch_cache 离线加载 DINOv2-L（本地 vendored 架构 + 官方权重）。
+
+        2026-10-23 采纳社区方案（ComfyUI-VOSR2 的 models/dinov2.py，Apache-2.0）：
+        不再用 torch.hub.load（会拉取并执行缓存仓库代码、还要求随仓库 clone
+        dinov2 源码），改为本地复刻架构 + 直接加载官方 checkpoint。
+        """
+        from vosr.models.dinov2_vitl14 import build_dinov2_vitl14
+
+        if args.enc_type != "dinov2l":
+            raise NotImplementedError(
+                f"当前仅 vendored 了 dinov2l 架构（VOSR2 / 1.4B 系使用），"
+                f"暂不支持 {args.enc_type}（0.5B 系的 dinov2b 需另行复刻）")
+        ckpt = os.path.join(self.model_root, "torch_cache", "checkpoints",
+                            "dinov2_vitl14_pretrain.pth")
+        if not os.path.isfile(ckpt):
             raise FileNotFoundError(
-                f"DINOv2 代码或权重不完整: {repo_dir} / {ckpt}；"
+                f"DINOv2 权重不存在: {ckpt}；"
                 "请运行 python scripts/download_model.py")
 
-        torch.hub.set_dir(hub_dir)
-        entry = vit
-        try:
-            encoder = torch.hub.load("facebookresearch/dinov2", entry,
-                                     trust_repo=True)
-        except TypeError:  # 老版本 torch 无 trust_repo 参数
-            encoder = torch.hub.load("facebookresearch/dinov2", entry)
-
-        del encoder.head
-        encoder.head = torch.nn.Identity()
-
-        def forward_with_features(self, x, masks=None):
-            features = {}
-            layer_indices = list(range(len(self.blocks)))
-            if isinstance(x, list):
-                return self.forward_features_list(x, masks)
-            x = self.prepare_tokens_with_masks(x, masks)
-            for i, blk in enumerate(self.blocks):
-                x = blk(x)
-                if i in layer_indices:
-                    features[f"layer_{i}"] = x[:, 1:]
-            x_norm = self.norm(x)
-            return features, x_norm[:, 1:]
-
-        encoder.forward_with_features = types.MethodType(forward_with_features, encoder)
+        encoder = build_dinov2_vitl14()
+        state = torch.load(ckpt, map_location="cpu")
+        encoder.load_state_dict(state, strict=False)
         encoder = encoder.to(dev).eval()
-        for p in encoder.parameters():
-            p.requires_grad_(False)
+        for param in encoder.parameters():
+            param.requires_grad_(False)
         if dev.type == "cuda":
             encoder = encoder.half()
         return encoder
@@ -482,14 +478,17 @@ class VOSR2Engine:
                         else _VAE_TILE_AUTO_LOW_VRAM)
         return dit_tile, vae_tile
 
-    def _preflight_output(self, side: int, upscale: int) -> int:
-        """输出边长前置检查，超过上限抛 ValueError（附可操作建议）。"""
-        output_side = side * upscale
+    def _preflight_output(self, output_side: int, upscale: int) -> int:
+        """输出边长前置检查，超过上限抛 ValueError（附可操作建议）。
+
+        output_side: 期望输出的长边像素；upscale 仅用于错误消息。
+        """
         if output_side > self.max_output_side:
-            max_factor = max(1, self.max_output_side // side)
+            input_side = max(1, output_side // max(1, upscale))
+            max_factor = max(1, self.max_output_side // input_side)
             raise ValueError(
                 f"输出边长 {output_side}px 超过上限 {self.max_output_side}px"
-                f"（输入 {side}px × {upscale}）。请降低放大倍率"
+                f"（×{upscale} 放大）。请降低放大倍率"
                 f"（本图最高 ×{max_factor}）或先裁剪输入。")
         return output_side
 
@@ -521,31 +520,31 @@ class VOSR2Engine:
         np.random.seed(seed % (2**32))
 
         raw = image.convert("RGB")
-        # 上游 forward_flexible 仅支持方形输入（H==W 断言）；非方形图中心裁剪
-        # 到正方形（裁剪区域记入日志，结果元数据不承诺保边）
         w, h = raw.size
-        side = min(w, h)
-        if w != h:
-            left, top = (w - side) // 2, (h - side) // 2
-            logger.info(f"输入非方形 ({w}x{h})，中心裁剪为 {side}x{side}")
-            raw = raw.crop((left, top, left + side, top + side))
+        output_w, output_h = w * params.upscale, h * params.upscale
 
-        # 前置检查 + 自动分块决策（防止大图全图 VAE 编码 OOM）
-        output_side = self._preflight_output(side, params.upscale)
+        # 前置检查（按输出长边）+ 自动分块决策（防止大图全图 VAE 编码 OOM）
+        output_long = max(output_w, output_h)
+        self._preflight_output(output_long, params.upscale)
         free_gb = (torch.cuda.mem_get_info()[0] / 1024**3
                    if torch.cuda.is_available() else 0.0)
         dit_tile, vae_tile = self._auto_tile_sizes(
-            output_side, free_gb, params.tile_size, params.vae_tile_size)
+            output_long, free_gb, params.tile_size, params.vae_tile_size)
         args.tile_size = dit_tile
         args.vae_tile_size = vae_tile
         if dit_tile or vae_tile:
             logger.info(
-                f"分块推理: 输出 {output_side}px, DiT tile={dit_tile or '关'}, "
-                f"VAE tile={vae_tile or '关'} (可用显存 {free_gb:.1f}GB)")
+                f"分块推理: 输出 {output_w}x{output_h}px, "
+                f"DiT tile={dit_tile or '关'}, VAE tile={vae_tile or '关'} "
+                f"(可用显存 {free_gb:.1f}GB)")
 
-        target_w = target_h = output_side
-        input_img = raw.resize((target_w, target_h), Image.BICUBIC)
+        # 非方形图不裁剪内容：bicubic 预放大后 reflect 填充到 16 的倍数
+        # （VAE 下采样 8 x DiT patch 2，保证 latent 对齐；VAE tiled 路径内部
+        # 还会按 8 补齐），VAE 解码后裁回请求的输出尺寸。方案对齐社区
+        # ComfyUI-VOSR2（2026-10-23 采纳）。
+        input_img = raw.resize((output_w, output_h), Image.BICUBIC)
         lq = transforms.ToTensor()(input_img).unsqueeze(0).to(dev) * 2.0 - 1.0
+        lq, _, _ = _pad_to_multiple(lq, 16)  # 补齐到 16 倍数（VAE 8 x DiT patch 2）
         # input_img 保留到颜色对齐之后（wavelet/adain 需要它做参考）
 
         self._report(cb, "encode", 0.1)
@@ -563,11 +562,14 @@ class VOSR2Engine:
                 # 采样前把 latent 转到 DiT 精度，避免 cat  dtype 不匹配
                 dit_dtype = next(self.dit.parameters()).dtype
                 lq_latent = lq_latent.to(dit_dtype)
+                # forward_flexible 仅支持方形 latent：reflect 补方，算完裁回
+                lq_latent_sq, lat_hw = _pad_to_square(lq_latent)
                 self._report(cb, "venc", 0.25)
                 z_fea = get_venc_features(self.venc, lq, args)
                 _empty_cache()
                 self._report(cb, "sample", 0.4)
-                sr_latent = self._sample(lq_latent, z_fea, args, cb)
+                sr_latent = self._sample(lq_latent_sq, z_fea, args, cb)[
+                    :, :, :lat_hw[0], :lat_hw[1]]
                 _empty_cache()
                 self._report(cb, "decode", 0.85)
                 sr_tensor = tiled_vae.decode_dispatch(
@@ -578,6 +580,8 @@ class VOSR2Engine:
         # NaN 防护：fp16 分块混合边缘可能产生极个别 NaN/Inf 像素，
         # 不处理会在 ToPILImage cast 时告警并产生黑点（2026-10-23 实测）。
         sr_tensor = torch.nan_to_num(sr_tensor, nan=0.0, posinf=1.0, neginf=-1.0)
+        # 裁掉 pad 到 16 倍数多出来的边，回到请求的输出尺寸
+        sr_tensor = sr_tensor[:, :, :output_h, :output_w]
         sr_img = transforms.ToPILImage()(sr_tensor[0].cpu().clamp(-1.0, 1.0) * 0.5 + 0.5)
         self._report(cb, "align", 0.95)
         sr_img = self._align(sr_img, input_img, params.align_method)

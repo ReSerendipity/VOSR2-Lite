@@ -41,11 +41,11 @@ def test_preflight_output_cap():
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
 
     engine = VOSR2Engine("VOSR2", "/tmp/whatever", max_output_side=6144)
-    assert engine._preflight_output(774, 4) == 3096  # 正常尺寸不拦
+    assert engine._preflight_output(3096, 4) == 3096  # 正常尺寸不拦
     with pytest.raises(ValueError, match="降低放大倍率"):
-        engine._preflight_output(2000, 4)  # 8000 > 6144
+        engine._preflight_output(8000, 4)  # 8000 > 6144
     with pytest.raises(ValueError, match="×3"):
-        engine._preflight_output(2000, 4)  # 建议倍率 = 6144//2000 = 3
+        engine._preflight_output(8000, 4)  # 建议倍率 = 6144//2000 = 3
 
 
 def test_project_root_resolution():

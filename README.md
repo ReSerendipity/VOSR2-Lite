@@ -28,7 +28,7 @@
    ```
    > torch 需 CUDA 版（≥2.7，cu128；RTX 50 系 sm_120 必须，cu121 不支持）：
    > `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`
-4. **下载模型**（约 6.6 GB）：
+4. **下载模型**（约 6.6 GB，仅权重；DINOv2 架构已本地 vendored 无需 clone 仓库）：
    ```bash
    .venv\Scripts\python scripts/download_model.py
    ```

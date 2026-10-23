@@ -22,6 +22,10 @@
     - 幂等：已存在的文件自动跳过（登记了 sha256 的会校验）
     - 断点续传：.part 文件 + HTTP Range（服务端不支持则整文件重下）
     - 多源回退：hf-mirror -> huggingface.co -> ModelScope
+
+注：DINOv2 架构已在 vosr/models/dinov2_vitl14.py 本地 vendored，
+只需下载权重文件，无需 clone facebookresearch/dinov2 仓库
+（2026-10-23 起，采纳 ComfyUI-VOSR2 社区方案）。
 """
 
 from __future__ import annotations
@@ -29,7 +33,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
-import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -105,9 +108,6 @@ CHECKPOINTS: dict[str, dict[str, object]] = {
     },
 }
 
-DINOV2_REPO_URL = "https://github.com/facebookresearch/dinov2.git"
-DINOV2_LOCAL = os.path.join(MODEL_ROOT, "torch_cache",
-                            "facebookresearch_dinov2_main")
 
 
 def _human(size: float) -> str:
@@ -180,17 +180,6 @@ def _fetch(rel: str, endpoint: str) -> None:
     raise SystemExit(f"下载失败: {rel}（最后错误: {last_err}）")
 
 
-def ensure_dinov2_code() -> None:
-    """确保 torch.hub 离线加载所需的 DINOv2 仓库代码存在。"""
-    if os.path.isfile(os.path.join(DINOV2_LOCAL, "hubconf.py")):
-        print("[skip] DINOv2 代码已存在")
-        return
-    print(f"[git ] 克隆 DINOv2 代码 -> {os.path.relpath(DINOV2_LOCAL, PROJECT_ROOT)}")
-    os.makedirs(os.path.dirname(DINOV2_LOCAL), exist_ok=True)
-    subprocess.run(["git", "clone", "--depth", "1", DINOV2_REPO_URL, DINOV2_LOCAL],
-                   check=True)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="VOSR2-Lite 模型权重下载")
     parser.add_argument("--checkpoint", default="VOSR2",
@@ -199,8 +188,6 @@ def main() -> None:
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT,
                         help="HF 镜像端点（默认 https://hf-mirror.com；"
                              "或用 HF_ENDPOINT 环境变量）")
-    parser.add_argument("--no-dinov2", action="store_true",
-                        help="跳过 DINOv2 仓库代码克隆")
     args = parser.parse_args()
     endpoint = args.endpoint.rstrip("/")
 
@@ -211,9 +198,6 @@ def main() -> None:
 
     for rel in entry["files"]:  # type: ignore[union-attr]
         _fetch(str(rel), endpoint)
-
-    if not args.no_dinov2:
-        ensure_dinov2_code()
 
     print("\n完成。可运行 python scripts/smoke_infer.py -i <图片> -o outputs/ -u 2 验证。")
 

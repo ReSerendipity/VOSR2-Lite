@@ -12,13 +12,16 @@ model/
 │   └── diffusion_pytorch_model.safetensors
 ├── stable-diffusion-2-1-base/      # SD2.1 VAE（0.5B 系需要）
 ├── sd21_lwdecoder.pth              # SD2.1 轻量解码器（0.5B 系需要）
-└── torch_cache/                    # DINOv2（torch.hub 离线加载）
-    ├── checkpoints/dinov2_vit{l,b}14_pretrain.pth
-    └── facebookresearch_dinov2_main/   # DINOv2 仓库代码（git clone）
+└── torch_cache/                    # DINOv2 权重（架构已本地 vendored）
+    └── checkpoints/dinov2_vitl14_pretrain.pth
 ```
 
 下载：`python scripts/download_model.py`（默认 VOSR2，约 6.6 GB，
 走 hf-mirror 镜像，可用 `HF_ENDPOINT` 覆盖）。其他检查点：
 `--checkpoint VOSR_0.5B_os` 等。
+
+DINOv2 架构已在 `vosr/models/dinov2_vitl14.py` 本地 vendored
+（来自 ComfyUI-VOSR2 社区节点，Apache-2.0），只需权重文件，
+无需 clone facebookresearch/dinov2 仓库。
 
 本目录内容被 .gitignore 忽略，请勿把权重提交入库。

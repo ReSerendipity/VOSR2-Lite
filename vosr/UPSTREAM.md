@@ -33,3 +33,16 @@
 - HuggingFace：https://huggingface.co/CSWRY/VOSR （默认经 hf-mirror.com 镜像）
 - ModelScope：https://modelscope.cn/models/LULALULALU/VOSR_CKPT
 - 布局与上游 `preset/ckpts/` 一致，落到本仓 `model/` 目录。
+
+## 社区复用记录（2026-10-23，按"拥抱社区、不重复造轮子"原则采纳）
+
+| 本仓路径 | 来源 | 说明 |
+|---|---|---|
+| `vosr/models/dinov2_vitl14.py` | [ylchen333/ComfyUI-VOSR2](https://github.com/ylchen333/ComfyUI-VOSR2) `models/dinov2.py`（Apache-2.0，其本身是 Meta DINOv2 的本地复刻） | 替换 torch.hub 加载：规避"拉取并执行缓存仓库代码"的供应链风险与随仓库 clone 依赖；`forward_intermediate_layer` 可跳过无用 block。适配点：移除 comfy.ops 依赖（ComfyUI 专用），补 `forward_with_features` 保持与上游特征接口一致 |
+
+同时参照该社区节点对齐的行为（inference.py / nodes_vosr.py）：
+- 非方形图 reflect 填充到方形/16 倍数后裁回，**不中心裁剪**（避免丢内容）
+- dtype 策略：VAE 恒 fp32，DiT 与视觉编码器 fp16（与其 "The VAE always runs in fp32" 一致）
+- 分块阈值：输出 >512² 开 DiT 分块、>1024² 开 VAE 分块（其文档明确 "tiling is not optional above 512px"）
+- 优于社区版的一点：其 DiT 分块混合累加用 fp16（latent 角落高斯权重 ~3e-11 会下溢），
+  本仓已改 fp32 累加修复该隐患
