@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="{{ current_locale }}" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set csp_nonce = csp_nonce | default('') %}
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'{% if csp_nonce %} 'nonce-{{ csp_nonce }}'{% else %} 'unsafe-inline'{% endif %}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self' data:;">
+    <title>{% block title %}VOSR2-Lite{% endblock %}</title>
+    <script nonce="{{ csp_nonce | default('') }}">
+        (function() {
+            var saved = localStorage.getItem('vosr2-theme');
+            var theme = saved || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.classList.add('sv-theme-no-transition');
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    document.documentElement.classList.remove('sv-theme-no-transition');
+                }, 100);
+            });
+        })();
+    </script>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/app-icon-32.png">
+    <link rel="alternate icon" type="image/x-icon" href="/static/favicon.ico">
+    <script nonce="{{ csp_nonce | default('') }}">
+    window.__LOCALE__ = "{{ current_locale }}";
+    window.__I18N__ = {{ (i18n_flat or {}) | tojson }};
+    </script>
+    <link href="/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/fonts/fonts.css">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ app_version | default('0.1.0') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div id="htmxIndicator" class="htmx-indicator">
+        <div class="sv-top-progress-bar"></div>
+    </div>
+
+    <a href="#main-content" class="sv-skip-link">{{ t('common.skip_to_content') }}</a>
+
+    <header class="sv-navbar-wrapper">
+    <nav class="sv-navbar">
+        <a href="/" class="sv-navbar-brand">
+            <svg class="brand-logo" width="22" height="22" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="7" fill="currentColor"/><text x="16" y="22" font-family="Georgia,serif" font-size="17" font-style="italic" fill="#faf7f2" text-anchor="middle">V</text></svg>
+            <span class="brand-text">VOSR2<span class="brand-dot">.</span></span>
+        </a>
+        <ul class="sv-navbar-nav" id="mainNav">
+            <li><a href="/" class="sv-nav-link {% if active_page == 'index' %}active{% endif %}">
+                <i class="bi bi-house-door nav-icon"></i><span>{{ t('nav.home') }}</span></a></li>
+            <li><a href="/restore" class="sv-nav-link {% if active_page == 'restore' %}active{% endif %}">
+                <i class="bi bi-magic nav-icon"></i><span>{{ t('nav.restore') }}</span></a></li>
+            <li><a href="/history" class="sv-nav-link {% if active_page == 'history' %}active{% endif %}">
+                <i class="bi bi-clock-history nav-icon"></i><span>{{ t('nav.history') }}</span></a></li>
+            <li><a href="/system-status" class="sv-nav-link {% if active_page == 'system' %}active{% endif %}">
+                <i class="bi bi-cpu nav-icon"></i><span>{{ t('nav.system') }}</span></a></li>
+            <li><a href="/settings" class="sv-nav-link {% if active_page == 'settings' %}active{% endif %}">
+                <i class="bi bi-gear nav-icon"></i><span>{{ t('nav.settings') }}</span></a></li>
+        </ul>
+        <div class="sv-navbar-actions">
+            <button class="sv-theme-toggle" id="btnThemeToggle" aria-label="{{ t('common.switch_theme') }}" title="{{ t('common.switch_theme') }}">
+                <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
+            </button>
+            <div class="sv-locale-dropdown" id="localeDropdown">
+                <button class="sv-nav-icon-btn sv-nav-icon-btn--labeled" id="btnLocaleSwitch" aria-label="{{ t('common.switch_language') }}" aria-haspopup="true" aria-expanded="false">
+                    <i class="bi bi-translate" aria-hidden="true"></i>
+                    <span class="sv-locale-code">{% if current_locale == 'zh' %}简中{% else %}EN{% endif %}</span>
+                </button>
+                <div class="sv-locale-menu" id="localeMenu" role="menu">
+                    {% for loc in locales %}
+                    <button class="sv-locale-item {% if loc.code == current_locale %}active{% endif %}" data-locale="{{ loc.code }}" role="menuitem">{{ loc.name }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </nav>
+    </header>
+
+    <main class="sv-main" id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <div class="sv-sys-widget collapsed" role="status" aria-label="{{ t('system.title') }}">
+        <button class="sv-sys-widget-toggle" id="sysWidgetToggle" aria-expanded="false" title="{{ t('system.title') }}">
+            <i class="bi bi-chevron-up"></i>
+        </button>
+        <div class="sv-sys-widget-body collapsed" id="sysWidgetBody">
+            <span class="sw-item"><span class="sv-status-dot online" id="statusDot"></span></span>
+            <span class="sw-item sw-item-hide-mobile">VOSR2-Lite v{{ app_version | default('?') }}</span>
+            <span class="sw-item" id="statusModel">{{ t('system.not_loaded') }}</span>
+            <span class="sw-item" id="statusGpu">GPU: --</span>
+        </div>
+    </div>
+
+    <div class="sv-toast-container" id="toastContainer" role="status" aria-live="polite"></div>
+
+    <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/htmx/htmx.min.js"></script>
+    <script src="/static/js/app.js?v={{ app_version | default('0.1.0') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

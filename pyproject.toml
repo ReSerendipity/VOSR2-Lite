@@ -1,0 +1,58 @@
+[project]
+name = "vosr2-lite"
+version = "0.1.0"
+description = "基于 VOSR2 扩散模型的独立图像超分辨率工具箱（FastAPI + Web UI，无需 ComfyUI）"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "ReSerendipity" }]
+dependencies = [
+    "torch>=2.7.0",
+    "torchvision>=0.22.0",
+    "diffusers>=0.35.0",
+    "accelerate>=1.1.0",
+    "einops>=0.8.0",
+    "safetensors>=0.4.4",
+    "timm>=1.0.11",
+    "fairscale>=0.4.13",
+    "numpy>=1.26.4,<2.3",
+    "opencv-python-headless>=4.10.0",
+    "pillow>=10.0",
+    "PyYAML>=6.0.2",
+    "loguru>=0.7.3",
+    "tqdm>=4.66.4",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "jinja2>=3.1.4",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27.0",
+    "aiosqlite>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["vosr", "app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# vosr/ 为上游 cswry/VOSR 的 vendor 代码（Apache-2.0，原样保留，见 UPSTREAM.md），
+# 不参与本项目 lint；自有代码才受约束。
+extend-exclude = ["vosr"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

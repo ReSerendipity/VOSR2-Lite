@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}VOSR2-Lite - {{ t('nav.system') }}{% endblock %}
+
+{% block content %}
+<div class="sv-page">
+    <div class="sv-page-header">
+        <h1>{{ t('system.title') }}</h1>
+        <p class="sv-page-desc">{{ t('system.desc') }}</p>
+    </div>
+
+    <div class="sv-stat-grid">
+        <div class="sv-stat-card">
+            <div class="sv-stat-label">{{ t('system.gpu') }}</div>
+            <div class="sv-stat-value" id="sysGpu">--</div>
+            <div class="sv-stat-meta" id="sysVram">--</div>
+        </div>
+        <div class="sv-stat-card">
+            <div class="sv-stat-label">{{ t('system.model') }}</div>
+            <div class="sv-stat-value" id="sysModel">--</div>
+            <div class="sv-stat-meta" id="sysModelMeta">--</div>
+        </div>
+        <div class="sv-stat-card">
+            <div class="sv-stat-label">{{ t('system.tasks') }}</div>
+            <div class="sv-stat-value" id="sysTasks">--</div>
+            <div class="sv-stat-meta" id="sysTasksMeta">--</div>
+        </div>
+    </div>
+
+    <div class="sv-card">
+        <div class="sv-card-header">
+            <h3><i class="bi bi-box-seam"></i> {{ t('system.checkpoints') }}</h3>
+        </div>
+        <div class="sv-card-body sv-p-0">
+            <table class="sv-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('system.ckpt_name') }}</th>
+                        <th>{{ t('system.ckpt_type') }}</th>
+                        <th>{{ t('system.ckpt_vram') }}</th>
+                        <th>{{ t('system.ckpt_status') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="ckptBody">
+                    <tr><td colspan="4" class="sv-text-center sv-text-muted sv-p-8">{{ t('common.loading') }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce | default('') }}">
+document.addEventListener('DOMContentLoaded', async () => {
+    const I = window.__I18N__ || {};
+    const pick = (k, d) => I[k] || d;
+    try {
+        const health = await VOSR2.api.get('/api/system/health');
+        const gpu = health.gpu || {};
+        document.getElementById('sysGpu').textContent =
+            gpu.is_gpu_available ? gpu.device_name : pick('system.gpu_unavailable', '不可用');
+        document.getElementById('sysVram').textContent = gpu.is_gpu_available
+            ? `${gpu.vram_free_gb} / ${gpu.vram_total_gb} GB` : '--';
+        const model = health.model || {};
+        document.getElementById('sysModel').textContent =
+            model.model_loaded ? (model.current_checkpoint || '') : pick('system.not_loaded', '未加载');
+        document.getElementById('sysModelMeta').textContent = model.model_loaded
+            ? `${model.device} · ${model.load_seconds}s · ${model.vram_gb}GB` : '--';
+
+        const ckpts = health.checkpoints || [];
+        document.getElementById('ckptBody').innerHTML = ckpts.map(c => {
+            const ok = c.present;
+            const status = ok
+                ? `<span class="sv-badge sv-badge-completed">${pick('system.ckpt_ready', '就绪')}</span>`
+                : `<span class="sv-badge sv-badge-failed" title="${VOSR2.escapeHtml((c.missing || []).join(', '))}">${pick('system.ckpt_missing', '缺失')}</span>`;
+            return `<tr>
+                <td>${VOSR2.escapeHtml(c.display_name || c.name)}</td>
+                <td>${VOSR2.escapeHtml(c.type || '')}</td>
+                <td>≥ ${c.min_vram_gb} GB</td>
+                <td>${status}</td>
+            </tr>`;
+        }).join('') || `<tr><td colspan="4" class="sv-text-center sv-text-muted sv-p-8">--</td></tr>`;
+    } catch (err) {
+        console.warn('system status load failed', err);
+    }
+});
+</script>
+{% endblock %}

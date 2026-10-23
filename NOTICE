@@ -1,0 +1,38 @@
+# NOTICE
+
+本文件列出 VOSR2-Lite 分发物中第三方组件的许可与归属。使用本项目前请同时阅读
+`docs/USER_AGREEMENT.md`。
+
+## 本项目
+
+VOSR2-Lite — 基于 VOSR2 扩散模型的独立图像超分辨率工具箱。
+Copyright 2026 ReSerendipity。许可证：Apache-2.0（见 `LICENSE`）。
+
+本项目是独立的第三方社区工具，与 VOSR 论文作者所在机构（香港理工大学 / OPPO
+研究院）无隶属、赞助或官方合作关系。
+
+## 上游推理代码（vendor）
+
+- **cswry/VOSR**（CVPR 2026）：`vosr/models/`、`vosr/vosr.py`、`vosr/tiled_vae.py`
+  为上游代码的 vendor，Apache-2.0。来源：https://github.com/cswry/VOSR
+  论文：*VOSR: A Vision-Only Generative Model for Image Super-Resolution*,
+  Rongyuan Wu et al., CVPR 2026.（arXiv:2604.03225）
+  vendor 基线改动记录见 `vosr/UPSTREAM.md`。
+
+## 模型权重（运行时下载，不随仓库分发）
+
+| 组件 | 来源 | 许可 |
+|---|---|---|
+| VOSR2 / VOSR_* 检查点 | https://huggingface.co/CSWRY/VOSR （镜像 hf-mirror.com；备用 https://modelscope.cn/models/LULALULALU/VOSR_CKPT） | Apache-2.0（项目自有检查点） |
+| Qwen-Image-vae-2d | 上游由 Qwen-Image 3D 因果 VAE 转换的 2D 变体（Wan2.1 encoder + Qwen-Image decoder 微调） | 遵循 Wan2.1（Apache-2.0）与 Qwen-Image 上游条款 |
+| stable-diffusion-2-1-base VAE（0.5B 模型用） | https://huggingface.co/stabilityai/stable-diffusion-2-1-base | OpenRAIL++ |
+| sd21_lwdecoder.pth（0.5B 模型用） | CSWRY/VOSR | Apache-2.0 |
+| DINOv2 权重（dinov2_vitl14_pretrain.pth 等） | https://github.com/facebookresearch/dinov2 | DINOv2 仓库条款（含附加模型许可，见其 LICENSE 文件） |
+
+请在再分发时保留上述全部声明，并遵守各组件的许可条款。
+
+## 运行时依赖
+
+主要第三方库（各自许可见其项目）：PyTorch（BSD-3）、diffusers（Apache-2.0）、
+timm（Apache-2.0）、FastAPI（MIT）、Jinja2（BSD-3）、OpenCV（Apache-2.0）、
+loguru（MIT）、NumPy（BSD-3）。

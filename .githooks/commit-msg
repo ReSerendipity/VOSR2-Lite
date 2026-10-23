@@ -1,0 +1,18 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: Copyright (c) 2026 ReSerendipity
+# SPDX-License-Identifier: Apache-2.0
+#
+# commit-msg 钩子：校验 DCO 签名（Signed-off-by），缺失则阻断提交。
+# 启用：git config core.hooksPath .githooks
+
+MSG_FILE="$1"
+
+if ! grep -q "^Signed-off-by: " "$MSG_FILE"; then
+    echo ""
+    echo "[hook] 提交信息缺少 DCO 签名（Signed-off-by），已阻断。"
+    echo "[hook] 请使用: git commit -s"
+    echo "[hook] 或手动在提交信息中加入: Signed-off-by: Your Name <your@email>"
+    exit 1
+fi
+
+exit 0

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}VOSR2-Lite - {{ t('nav.history') }}{% endblock %}
+
+{% block content %}
+<div class="sv-page">
+    <div class="sv-page-header sv-page-header-row">
+        <h1>{{ t('history.title') }}</h1>
+        <button class="sv-btn sv-btn-outline sv-btn-sm" id="btnRefresh">
+            <i class="bi bi-arrow-clockwise"></i> {{ t('common.refresh') }}
+        </button>
+    </div>
+
+    <div class="sv-card">
+        <div class="sv-card-body sv-p-0">
+            <table class="sv-table" id="historyTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>{{ t('history.input') }}</th>
+                        <th>{{ t('history.checkpoint') }}</th>
+                        <th>{{ t('history.status') }}</th>
+                        <th>{{ t('history.created_at') }}</th>
+                        <th>{{ t('history.actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="6" class="sv-text-center sv-text-muted sv-p-8">{{ t('common.loading') }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="sv-pagination" id="pagination">
+        <button class="sv-btn sv-btn-outline sv-btn-sm" id="btnPrev">{{ t('common.prev') }}</button>
+        <span id="pageInfo">1 / 1</span>
+        <button class="sv-btn sv-btn-outline sv-btn-sm" id="btnNext">{{ t('common.next') }}</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce | default('') }}">
+document.addEventListener('DOMContentLoaded', () => {
+    const I = window.__I18N__ || {};
+    const pick = (k, d) => I[k] || d;
+    const body = document.getElementById('historyBody');
+    const pageInfo = document.getElementById('pageInfo');
+    let page = 1, totalPages = 1;
+
+    async function load() {
+        body.innerHTML = '<tr><td colspan="6" class="sv-text-center sv-text-muted sv-p-8">'
+            + pick('common.loading', '加载中...') + '</td></tr>';
+        try {
+            const data = await VOSR2.api.get(`/api/system/history?page=${page}&page_size=20`);
+            const records = data.records || [];
+            totalPages = Math.max(1, Math.ceil((data.total || 0) / (data.page_size || 20)));
+            pageInfo.textContent = `${data.page} / ${totalPages}`;
+            if (!records.length) {
+                body.innerHTML = '<tr><td colspan="6" class="sv-text-center sv-text-muted sv-p-8">'
+                    + pick('history.empty', '暂无记录') + '</td></tr>';
+                return;
+            }
+            body.innerHTML = records.map(r => {
+                const statusText = I['status.' + r.status] || r.status;
+                const badge = 'sv-badge-' + (r.status || 'pending');
+                const name = VOSR2.displayFileName(r.input_file || '');
+                const out = r.output_file
+                    ? `<a href="/api/restore/${r.task_id || ''}/download" class="sv-btn sv-btn-sm sv-btn-outline">${pick('common.download', '下载')}</a>`
+                    : '';
+                return `<tr>
+                    <td>${r.id}</td>
+                    <td title="${VOSR2.escapeHtml(r.input_file || '')}">${VOSR2.escapeHtml(name)}</td>
+                    <td>${VOSR2.escapeHtml(r.checkpoint || '')}</td>
+                    <td><span class="sv-badge ${badge}">${VOSR2.escapeHtml(statusText)}</span></td>
+                    <td>${VOSR2.escapeHtml(r.created_at || '')}</td>
+                    <td>${out}<button class="sv-btn sv-btn-sm sv-btn-outline sv-btn-danger-text" data-del="${r.id}">${pick('common.delete', '删除')}</button></td>
+                </tr>`;
+            }).join('');
+        } catch (err) {
+            body.innerHTML = '<tr><td colspan="6" class="sv-text-center sv-text-muted sv-p-8">'
+                + pick('common.failed', '加载失败') + '</td></tr>';
+        }
+    }
+
+    body.addEventListener('click', async e => {
+        const id = e.target.getAttribute('data-del');
+        if (!id) return;
+        if (!confirm(pick('history.confirm_delete', '确认删除该记录？'))) return;
+        try {
+            await VOSR2.api.del(`/api/system/history/${id}`);
+            load();
+        } catch (err) { VOSR2.toast(err.message, 'error'); }
+    });
+
+    document.getElementById('btnRefresh').addEventListener('click', load);
+    document.getElementById('btnPrev').addEventListener('click', () => {
+        if (page > 1) { page--; load(); }
+    });
+    document.getElementById('btnNext').addEventListener('click', () => {
+        if (page < totalPages) { page++; load(); }
+    });
+    load();
+});
+</script>
+{% endblock %}

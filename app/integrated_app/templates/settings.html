@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}VOSR2-Lite - {{ t('nav.settings') }}{% endblock %}
+
+{% block content %}
+<div class="sv-page">
+    <div class="sv-page-header">
+        <h1>{{ t('settings.title') }}</h1>
+        <p class="sv-page-desc">{{ t('settings.desc') }}</p>
+    </div>
+
+    <div class="sv-card">
+        <div class="sv-card-header"><h3><i class="bi bi-info-circle"></i> {{ t('settings.about') }}</h3></div>
+        <div class="sv-card-body">
+            <table class="sv-table sv-table-kv">
+                <tr><td>{{ t('settings.version') }}</td><td>v{{ app_version | default('?') }}</td></tr>
+                <tr><td>{{ t('settings.upstream') }}</td><td><a href="https://github.com/cswry/VOSR" target="_blank" rel="noopener">cswry/VOSR</a>（CVPR 2026, Apache-2.0）</td></tr>
+                <tr><td>{{ t('settings.model_source') }}</td><td><a href="https://huggingface.co/CSWRY/VOSR" target="_blank" rel="noopener">HuggingFace CSWRY/VOSR</a> / <a href="https://modelscope.cn/models/LULALULALU/VOSR_CKPT" target="_blank" rel="noopener">ModelScope</a></td></tr>
+                <tr><td>{{ t('settings.license') }}</td><td>Apache-2.0（第三方组件许可见 NOTICE）</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="sv-card">
+        <div class="sv-card-header"><h3><i class="bi bi-lightbulb"></i> {{ t('settings.usage') }}</h3></div>
+        <div class="sv-card-body">
+            <p>{{ t('settings.usage_download') }}</p>
+            <pre class="sv-code">python scripts/download_model.py</pre>
+            <p>{{ t('settings.usage_start') }}</p>
+            <pre class="sv-code">start.bat</pre>
+        </div>
+    </div>
+</div>
+{% endblock %}

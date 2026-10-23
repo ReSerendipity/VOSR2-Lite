@@ -1,0 +1,123 @@
+{
+  "app": {
+    "title": "VOSR2-Lite",
+    "subtitle": "VOSR2 · 一步生成式超分"
+  },
+  "nav": {
+    "home": "首页",
+    "restore": "修复工作台",
+    "history": "历史记录",
+    "system": "系统状态",
+    "settings": "设置"
+  },
+  "common": {
+    "skip_to_content": "跳到主内容",
+    "switch_theme": "切换主题",
+    "switch_language": "切换语言",
+    "cancel": "取消",
+    "confirm": "确认",
+    "close": "关闭",
+    "download": "下载",
+    "delete": "删除",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "processing": "处理中...",
+    "completed": "已完成",
+    "failed": "失败",
+    "prev": "上一页",
+    "next": "下一页"
+  },
+  "status": {
+    "gpu_detecting": "正在检测 GPU...",
+    "gpu_unavailable": "GPU 不可用",
+    "pending": "排队中",
+    "processing": "处理中",
+    "completed": "已完成",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "system": {
+    "not_loaded": "模型未加载",
+    "title": "系统状态",
+    "desc": "GPU、模型与权重完整性实时监控",
+    "gpu": "GPU",
+    "model": "当前模型",
+    "tasks": "任务队列",
+    "checkpoints": "模型权重（checkpoints）",
+    "ckpt_name": "名称",
+    "ckpt_type": "类型",
+    "ckpt_vram": "最低显存",
+    "ckpt_status": "状态",
+    "ckpt_ready": "就绪",
+    "ckpt_missing": "缺失",
+    "gpu_unavailable": "不可用"
+  },
+  "home": {
+    "hero_title": "一步生成式",
+    "hero_highlight": "图像超分辨率",
+    "hero_subtitle": "基于 CVPR 2026 开源模型 VOSR2 的独立工具箱：无需 ComfyUI，上传图片即可在本地完成高质量超分修复，数据不出机器。",
+    "start": "开始修复",
+    "view_all": "查看全部",
+    "recent_tasks": "最近任务",
+    "no_tasks_desc": "还没有修复记录，上传第一张图片试试。",
+    "quick": {
+      "upload": "上传图片",
+      "upload_desc": "选择本地图片，一键超分",
+      "params": "推理参数",
+      "params_desc": "倍率 / 采样步数 / 分块可调",
+      "history": "历史记录",
+      "history_desc": "查看与下载过往成果"
+    }
+  },
+  "restore": {
+    "title": "修复工作台",
+    "desc": "上传图片并调整推理参数，任务在单 GPU 上串行执行",
+    "upload_title": "上传图片",
+    "drop_hint": "拖拽图片到此处，或点击选择文件",
+    "select_file": "选择文件",
+    "params_title": "推理参数",
+    "upscale": "放大倍率",
+    "steps": "采样步数",
+    "align_method": "颜色对齐",
+    "align": {
+      "wavelet": "小波（默认）",
+      "adain": "AdaIN",
+      "nofix": "不对齐"
+    },
+    "seed": "随机种子（-1 随机）",
+    "tile_size": "DiT 分块（像素）",
+    "tile": {
+      "off": "关闭"
+    },
+    "vae_tile_size": "VAE 分块（像素）",
+    "start": "开始修复",
+    "need_file": "请先选择图片",
+    "progress_title": "任务进度",
+    "result_title": "修复结果",
+    "done": "修复完成",
+    "cancelled": "已取消",
+    "err_format": "不支持的图片格式"
+  },
+  "history": {
+    "title": "历史记录",
+    "input": "输入文件",
+    "checkpoint": "模型",
+    "status": "状态",
+    "created_at": "时间",
+    "actions": "操作",
+    "empty": "暂无记录",
+    "confirm_delete": "确认删除该记录？"
+  },
+  "settings": {
+    "title": "设置",
+    "desc": "关于本项目与快速上手",
+    "about": "关于",
+    "version": "版本",
+    "upstream": "上游项目",
+    "model_source": "模型来源",
+    "license": "许可证",
+    "usage": "快速上手",
+    "usage_download": "1. 下载模型权重（约 6.6 GB，默认走 hf-mirror 镜像）：",
+    "usage_start": "2. 启动服务（默认 127.0.0.1:7871）："
+  }
+}

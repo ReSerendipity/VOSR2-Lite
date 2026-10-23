@@ -1,0 +1,94 @@
+server:
+  host: 127.0.0.1
+  port: 7871
+  auto_open_browser: true
+  debug: false
+  allowed_origins:
+  - http://127.0.0.1:7871
+  - http://localhost:7871
+model:
+  # 权重根目录（布局对齐上游 preset/ckpts/）
+  pretrained_dir: model
+  # 默认加载的 checkpoint 目录名（model/ 下）
+  default_checkpoint: VOSR2
+  # 启动时是否自动加载模型（false = 首次请求时懒加载）
+  auto_load: false
+  # 空闲自动卸载分钟数（0 = 从不卸载）
+  idle_unload_minutes: 15
+  # device: auto | cuda | cpu
+  device: auto
+  checkpoints:
+    VOSR2:
+      name: VOSR 2.0 (1.4B one-step)
+      type: onestep
+      ae_type: qwen
+      min_vram_gb: 8
+      default_steps: 1
+    VOSR_1.4B_os:
+      name: VOSR-1.4B one-step (distilled)
+      type: onestep
+      ae_type: qwen
+      min_vram_gb: 8
+      default_steps: 1
+    VOSR_1.4B_ms:
+      name: VOSR-1.4B multi-step
+      type: multistep
+      ae_type: qwen
+      min_vram_gb: 8
+      default_steps: 25
+    VOSR_0.5B_os:
+      name: VOSR-0.5B one-step (distilled)
+      type: onestep
+      ae_type: sd2
+      min_vram_gb: 4
+      default_steps: 1
+    VOSR_0.5B_ms:
+      name: VOSR-0.5B multi-step
+      type: multistep
+      ae_type: sd2
+      min_vram_gb: 4
+      default_steps: 25
+inference:
+  default_upscale: 4
+  default_align_method: wavelet
+  default_seed: 42
+  default_steps: 1
+  # DiT 分块（像素，0 = 关闭）；输出边长超过该值建议开启
+  default_tile_size: 0
+  tile_overlap: 32
+  # VAE 分块（像素，0 = 整图）；仅极端大图需要
+  default_vae_tile_size: 0
+  # 颜色对齐方式: wavelet | adain | nofix
+  align_methods:
+  - wavelet
+  - adain
+  - nofix
+history:
+  db_path: data/history.db
+  max_records: 10000
+i18n:
+  available_locales:
+  - zh
+  - en
+  default_locale: zh
+logging:
+  file: logs/app.log
+  level: INFO
+  max_size_mb: 50
+  backup_count: 3
+runtime:
+  security:
+    rate_limit_per_minute: 30
+    max_upload_image_mb: 50
+    allowed_base_dirs:
+    - outputs/
+    - data/uploads/
+    - data/checkpoints/
+    - model/
+  task:
+    queue_maxsize: 100
+    max_timeout_seconds: 86400
+    progress_stall_timeout_minutes: 30
+  sse:
+    heartbeat_interval_seconds: 30
+    max_duration_seconds: 3600

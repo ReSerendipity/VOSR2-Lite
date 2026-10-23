@@ -1,0 +1,63 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ── 虚拟环境 ────────────────────────────────────────────────────────────────
+.venv/
+venv/
+ENV/
+WPy64-*/
+
+# ── 模型权重与推理缓存（体积大，不入库；用 scripts/download_model.py 获取）────
+model/*
+!model/.gitkeep
+!model/README.md
+
+# ── 运行产物 ────────────────────────────────────────────────────────────────
+data/uploads/*
+!data/uploads/.gitkeep
+data/checkpoints/*
+!data/checkpoints/.gitkeep
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
+outputs/*
+!outputs/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# ── 测试 / 覆盖率 / 类型检查缓存 ────────────────────────────────────────────
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+.hypothesis/
+.benchmarks/
+
+# ── 本地独享内容（不上远程）─────────────────────────────────────────────────
+local/
+docs/plans/
+docs/reports/
+docs/_devarchive/
+backups/
+*.local.*
+.env
+.wb_download_tmp.sh
+
+# ── 编辑器 / 操作系统 ───────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

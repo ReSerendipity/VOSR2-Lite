@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}VOSR2-Lite - {{ t('nav.home') }}{% endblock %}
+
+{% block content %}
+<div class="sv-hero">
+    <span class="sv-eyebrow sv-anim-rise">{{ t('app.subtitle') }}</span>
+    <h1 class="sv-anim-rise sv-anim-d1">{{ t('home.hero_title') }}<span class="hl">{{ t('home.hero_highlight') }}</span></h1>
+    <p class="sv-anim-rise sv-anim-d2">{{ t('home.hero_subtitle') }}</p>
+    <div class="sv-hero-actions sv-anim-rise sv-anim-d3">
+        <a href="/restore" class="sv-btn sv-btn-primary">
+            <i class="bi bi-lightning-charge"></i> {{ t('home.start') }}
+        </a>
+        <a href="/history" class="sv-btn sv-btn-outline">
+            {{ t('nav.history') }} <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+    <div class="sv-hero-status sv-anim-rise sv-anim-d4" id="heroStatus">
+        <span class="sv-hero-status-dot" id="heroStatusDot"></span>
+        <span id="heroStatusText">{{ t('status.gpu_detecting') }}</span>
+        <span class="sv-hero-status-sep">&middot;</span>
+        <span id="heroModelStatus">{{ t('system.not_loaded') }}</span>
+    </div>
+</div>
+
+<section class="sv-home-section sv-quick-cards">
+    <a href="/restore" class="sv-quick-card">
+        <div class="sv-quick-card-icon"><i class="bi bi-cloud-upload"></i></div>
+        <div class="sv-quick-card-content">
+            <h4>{{ t('home.quick.upload') }}</h4>
+            <p>{{ t('home.quick.upload_desc') }}</p>
+        </div>
+    </a>
+    <a href="/restore" class="sv-quick-card">
+        <div class="sv-quick-card-icon"><i class="bi bi-sliders"></i></div>
+        <div class="sv-quick-card-content">
+            <h4>{{ t('home.quick.params') }}</h4>
+            <p>{{ t('home.quick.params_desc') }}</p>
+        </div>
+    </a>
+    <a href="/history" class="sv-quick-card">
+        <div class="sv-quick-card-icon"><i class="bi bi-clock-history"></i></div>
+        <div class="sv-quick-card-content">
+            <h4>{{ t('home.quick.history') }}</h4>
+            <p>{{ t('home.quick.history_desc') }}</p>
+        </div>
+    </a>
+</section>
+
+<section class="sv-home-section" aria-label="{{ t('home.recent_tasks') }}">
+    <div class="sv-section-header">
+        <h2 class="sv-section-title">{{ t('home.recent_tasks') }}</h2>
+        <a href="/history" class="sv-section-link">{{ t('home.view_all') }} <i class="bi bi-arrow-right"></i></a>
+    </div>
+    <div class="sv-recent-list" id="recentList">
+        <div class="sv-recent-empty" id="recentEmpty">
+            <p>{{ t('home.no_tasks_desc') }}</p>
+            <div class="sv-recent-empty-actions">
+                <a href="/restore" class="sv-btn sv-btn-primary sv-btn-sm">
+                    <i class="bi bi-lightning-charge"></i> {{ t('home.start') }}
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce | default('') }}">
+document.addEventListener('DOMContentLoaded', async () => {
+    const I = window.__I18N__ || {};
+    try {
+        const health = await VOSR2.api.get('/api/system/health');
+        const dot = document.getElementById('heroStatusDot');
+        const gpu = health.gpu || {};
+        if (dot) dot.className = 'sv-hero-status-dot ' + (gpu.is_gpu_available ? 'online' : 'offline');
+        document.getElementById('heroStatusText').textContent =
+            gpu.device_name || (I['status.gpu_unavailable'] || 'GPU 不可用');
+        const model = health.model || {};
+        document.getElementById('heroModelStatus').textContent = model.model_loaded
+            ? (model.current_checkpoint || '') : (I['system.not_loaded'] || '未加载');
+    } catch (err) {
+        console.warn('Failed to load hero status:', err);
+    }
+    try {
+        const data = await VOSR2.api.get('/api/system/history?page=1&page_size=5');
+        const records = data.records || [];
+        const list = document.getElementById('recentList');
+        const empty = document.getElementById('recentEmpty');
+        if (records.length) {
+            empty.style.display = 'none';
+            const rows = records.map(r => {
+                const name = VOSR2.displayFileName(r.input_file || '');
+                const statusKey = 'status.' + r.status;
+                const statusText = I[statusKey] || r.status || '--';
+                const badgeClass = 'sv-badge-' + (r.status || 'pending');
+                const time = r.created_at ? VOSR2.formatTimestamp(r.created_at) : '';
+                return '<a class="sv-recent-item" href="/history">'
+                    + '<i class="bi bi-image recent-type-icon"></i>'
+                    + '<span class="recent-name">' + VOSR2.escapeHtml(name) + '</span>'
+                    + '<span class="sv-badge ' + badgeClass + '">' + VOSR2.escapeHtml(statusText) + '</span>'
+                    + '<span class="recent-meta">' + VOSR2.escapeHtml(time) + '</span>'
+                    + '<i class="bi bi-arrow-right recent-arrow"></i></a>';
+            }).join('');
+            list.insertAdjacentHTML('afterbegin', rows);
+        }
+    } catch (err) {
+        console.warn('Failed to load recent tasks:', err);
+    }
+});
+</script>
+{% endblock %}

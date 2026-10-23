@@ -1,0 +1,123 @@
+{
+  "app": {
+    "title": "VOSR2-Lite",
+    "subtitle": "VOSR2 · One-Step Generative SR"
+  },
+  "nav": {
+    "home": "Home",
+    "restore": "Restore",
+    "history": "History",
+    "system": "System",
+    "settings": "Settings"
+  },
+  "common": {
+    "skip_to_content": "Skip to content",
+    "switch_theme": "Toggle theme",
+    "switch_language": "Switch language",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "download": "Download",
+    "delete": "Delete",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "processing": "Processing...",
+    "completed": "Completed",
+    "failed": "Failed",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "status": {
+    "gpu_detecting": "Detecting GPU...",
+    "gpu_unavailable": "GPU unavailable",
+    "pending": "Pending",
+    "processing": "Processing",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "system": {
+    "not_loaded": "Model not loaded",
+    "title": "System Status",
+    "desc": "Live GPU / model / checkpoint monitoring",
+    "gpu": "GPU",
+    "model": "Current model",
+    "tasks": "Task queue",
+    "checkpoints": "Model checkpoints",
+    "ckpt_name": "Name",
+    "ckpt_type": "Type",
+    "ckpt_vram": "Min VRAM",
+    "ckpt_status": "Status",
+    "ckpt_ready": "Ready",
+    "ckpt_missing": "Missing",
+    "gpu_unavailable": "Unavailable"
+  },
+  "home": {
+    "hero_title": "One-step generative",
+    "hero_highlight": "image super-resolution",
+    "hero_subtitle": "A standalone toolkit built on the CVPR 2026 open-source model VOSR2: no ComfyUI required, upload an image and restore locally — your data never leaves the machine.",
+    "start": "Start restoring",
+    "view_all": "View all",
+    "recent_tasks": "Recent tasks",
+    "no_tasks_desc": "No restoration records yet — upload your first image.",
+    "quick": {
+      "upload": "Upload image",
+      "upload_desc": "Pick a local image, one-click upscale",
+      "params": "Inference params",
+      "params_desc": "Scale / steps / tiling are tunable",
+      "history": "History",
+      "history_desc": "Review and download past results"
+    }
+  },
+  "restore": {
+    "title": "Restore Workbench",
+    "desc": "Upload an image and tune inference params; tasks run serially on a single GPU",
+    "upload_title": "Upload image",
+    "drop_hint": "Drop an image here, or click to select a file",
+    "select_file": "Select file",
+    "params_title": "Inference parameters",
+    "upscale": "Upscale factor",
+    "steps": "Sampling steps",
+    "align_method": "Color alignment",
+    "align": {
+      "wavelet": "Wavelet (default)",
+      "adain": "AdaIN",
+      "nofix": "No fix"
+    },
+    "seed": "Seed (-1 = random)",
+    "tile_size": "DiT tile size (px)",
+    "tile": {
+      "off": "Off"
+    },
+    "vae_tile_size": "VAE tile size (px)",
+    "start": "Start restore",
+    "need_file": "Select an image first",
+    "progress_title": "Task progress",
+    "result_title": "Result",
+    "done": "Restore complete",
+    "cancelled": "Cancelled",
+    "err_format": "Unsupported image format"
+  },
+  "history": {
+    "title": "History",
+    "input": "Input file",
+    "checkpoint": "Checkpoint",
+    "status": "Status",
+    "created_at": "Time",
+    "actions": "Actions",
+    "empty": "No records yet",
+    "confirm_delete": "Delete this record?"
+  },
+  "settings": {
+    "title": "Settings",
+    "desc": "About this project and quick start",
+    "about": "About",
+    "version": "Version",
+    "upstream": "Upstream",
+    "model_source": "Model source",
+    "license": "License",
+    "usage": "Quick start",
+    "usage_download": "1. Download model weights (~6.6 GB, hf-mirror by default):",
+    "usage_start": "2. Start the service (default 127.0.0.1:7871):"
+  }
+}
