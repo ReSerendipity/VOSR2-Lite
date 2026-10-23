@@ -678,7 +678,10 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
 
     h_pos = tiled_vae._make_tile_grid(lh, lt_size, lt_overlap)
     w_pos = tiled_vae._make_tile_grid(lw, lt_size, lt_overlap)
-    g_weight = tiled_vae._gaussian_weights(lt_size, lt_size, lc, device)
+    # 混合累加用 fp32：latent 角落只被单瓦片覆盖，2D 高斯权重可低至 ~3e-11，
+    # fp16 下溢为 0 会导致 0/0=NaN、角落出彩色噪点（2026-10-23 实测）。
+    # DiT 前向仍走 fp16 省显存，仅累加与归一化升 fp32。
+    g_weight = tiled_vae._gaussian_weights(lt_size, lt_size, lc, device).float()
     logger.info(f"[分块推理] latent {lh}x{lw}, tile={lt_size}, "
                 f"overlap={lt_overlap}, grid={len(h_pos)}x{len(w_pos)}")
 
@@ -702,8 +705,8 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
         for step_i in range(n_steps):
             t_cur, t_nxt = t_seq[step_i], t_seq[step_i + 1]
             dt = t_cur - t_nxt
-            u_acc = torch.zeros_like(lq_latent)
-            w_acc = torch.zeros_like(lq_latent)
+            u_acc = torch.zeros(lq_latent.shape, device=device, dtype=torch.float32)
+            w_acc = torch.zeros_like(u_acc)
             for hi in h_pos:
                 for wi in w_pos:
                     he, we = hi + lt_size, wi + lt_size
@@ -711,9 +714,9 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
                                      z[:, :, hi:he, wi:we]], dim=1)
                     u_tile = model(inp, t_cur.expand(b), t_nxt.expand(b),
                                    tile_venc.get((hi, wi)))
-                    u_acc[:, :, hi:he, wi:we] += u_tile * g_weight
+                    u_acc[:, :, hi:he, wi:we] += u_tile.float() * g_weight
                     w_acc[:, :, hi:he, wi:we] += g_weight
-            z = z - dt * (u_acc / w_acc.clamp(min=1e-6))
+            z = (z.float() - dt * (u_acc / w_acc.clamp(min=1e-12))).to(z.dtype)
             _report("sample", 0.4 + 0.45 * (step_i + 1) / n_steps)
 
         _report("decode", 0.9)
@@ -727,12 +730,17 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
 def get_venc_features(venc, lq_tensor, args):
     """整图 DINOv2 特征提取（与上游 get_venc_features 等价）。
 
+    上游 preprocess_raw_image 的顺序是：先 /255 归一到 [0,1]，再 interpolate，
+    再 clip(0,1)，最后 ImageNet 归一化。注意 clip 必须作用在 [0,1] 上——
+    若对 [0,255] 做 clip(0,1)，DINOv2 的输入几乎全为 1.0（纯白），
+    语义条件被打坏，输出细节与颜色会显著劣化（2026-10-23 用户实测反馈，
+    已按上游顺序修复并回归）。
     DINOv2 可能以 fp16 驻留（显存适配），输入需转到同一精度。
     """
     if venc is None:
         return None
     with torch.no_grad():
-        raw_image = (0.5 * lq_tensor + 0.5) * 255
+        raw_image = (0.5 * lq_tensor + 0.5)  # [-1,1] -> [0,1]
         raw_image = F.interpolate(
             raw_image, args.dinov2_size, mode="bicubic").clip(0.0, 1.0)
         raw_image = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(raw_image)
