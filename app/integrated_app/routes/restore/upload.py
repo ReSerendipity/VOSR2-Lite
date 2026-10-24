@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from loguru import logger
@@ -93,6 +94,7 @@ async def _run_restore_task(
 
     task_row = await history_db.get_task(task_id)
     record_id = task_row.get("record_id") if task_row else None
+    started = time.monotonic()
 
     try:
         await common.update_task_state(
@@ -127,15 +129,17 @@ async def _run_restore_task(
         out_path = await loop.run_in_executor(None, _run)
         size = os.path.getsize(out_path)
 
+        elapsed = round(time.monotonic() - started, 2)
         await common.update_task_state(
             task_id, history_db, status="completed", progress=1.0,
             message="修复完成", current_stage="done",
             output_path=out_path, output_size=size,
+            processing_time=elapsed,
             finished_at=common.now_str())
         if record_id:
             await history_db.update_record(
                 record_id, status="completed", output_file=out_path,
-                output_size=size)
+                output_size=size, processing_time=elapsed)
         logger.info(f"任务完成: {task_id} -> {out_path}")
 
     except Exception as exc:
@@ -152,10 +156,12 @@ async def _run_restore_task(
         await common.update_task_state(
             task_id, history_db, status="failed",
             error=str(exc), message="修复失败",
+            processing_time=round(time.monotonic() - started, 2),
             finished_at=common.now_str())
         if record_id:
-            await history_db.update_record(record_id, status="failed",
-                                           error=str(exc))
+            await history_db.update_record(
+                record_id, status="failed", error=str(exc),
+                processing_time=round(time.monotonic() - started, 2))
 
 
 @router.post("/")

@@ -78,6 +78,16 @@ class TaskQueue:
     def current_task_id(self) -> str | None:
         return self._current_task_id
 
+    def stats(self) -> dict:
+        """队列运行状态（系统状态页展示用）。"""
+        worker = self._worker_task
+        return {
+            "pending": self._queue.qsize(),
+            "capacity": self._queue.maxsize or 0,
+            "current_task_id": self._current_task_id,
+            "worker_running": bool(worker and not worker.done()),
+        }
+
     # ── worker ──────────────────────────────────────────────────────────────
     async def _worker_guarded(self) -> None:
         while self._running:

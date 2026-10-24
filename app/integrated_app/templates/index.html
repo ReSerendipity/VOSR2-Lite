@@ -95,8 +95,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const statusText = I[statusKey] || r.status || '--';
                 const badgeClass = 'sv-badge-' + (r.status || 'pending');
                 const time = r.created_at ? VOSR2.formatTimestamp(r.created_at) : '';
-                return '<a class="sv-recent-item" href="/history">'
-                    + '<i class="bi bi-image recent-type-icon"></i>'
+                const href = (r.task_id && r.status === 'completed')
+                    ? '/restore?task=' + r.task_id : '/history';
+                const thumb = r.status === 'completed'
+                    ? '<img class="recent-thumb" loading="lazy" alt="" src="/api/system/history/'
+                      + r.id + '/thumb?max=96">'
+                    : '<i class="bi bi-image recent-type-icon"></i>';
+                return '<a class="sv-recent-item" href="' + href + '">'
+                    + thumb
                     + '<span class="recent-name">' + VOSR2.escapeHtml(name) + '</span>'
                     + '<span class="sv-badge ' + badgeClass + '">' + VOSR2.escapeHtml(statusText) + '</span>'
                     + '<span class="recent-meta">' + VOSR2.escapeHtml(time) + '</span>'

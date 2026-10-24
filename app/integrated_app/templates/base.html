@@ -9,7 +9,10 @@
     <script nonce="{{ csp_nonce | default('') }}">
         (function() {
             var saved = localStorage.getItem('vosr2-theme');
-            var theme = saved || 'dark';
+            // 未保存偏好时跟随系统配色（首次访问不强行塞暗色）
+            var prefersLight = window.matchMedia
+                && window.matchMedia('(prefers-color-scheme: light)').matches;
+            var theme = saved || (prefersLight ? 'light' : 'dark');
             document.documentElement.setAttribute('data-theme', theme);
             document.documentElement.classList.add('sv-theme-no-transition');
             window.addEventListener('DOMContentLoaded', function() {
@@ -29,6 +32,7 @@
     <link href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/fonts/fonts.css">
     <link rel="stylesheet" href="/static/css/style.css?v={{ app_version | default('0.1.0') }}">
+    <link rel="stylesheet" href="/static/css/workbench.css?v={{ app_version | default('0.1.0') }}">
     {% block head %}{% endblock %}
 </head>
 <body>

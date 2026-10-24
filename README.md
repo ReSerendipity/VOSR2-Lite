@@ -14,8 +14,13 @@
 - **本地推理**：数据不出机器，FastAPI + Jinja2 + HTMX 提供完整 Web UI
 - **显存友好**：DiT / VAE 两级分块（Gaussian 混合），fp16 适配消费级显卡（12GB 可跑）
 - **多检查点**：VOSR2（一步，默认）/ VOSR-1.4B / VOSR-0.5B（一步蒸馏 / 多步）
-- **实时进度**：SSE 推送加载与推理各阶段进度；SQLite 历史记录可查可下载
-- **多语言界面**：简体中文 / English
+- **前后对比查看器**：拖动分割线逐处比对原图与修复结果；滚轮缩放、拖拽平移、
+  1:1 原生像素、跟随光标的放大镜（分割线两侧同时可见）
+- **批量处理**：一次多选或拖入多张图片，按队列串行处理，逐张显示状态并可单独打开对比
+- **效率细节**：参数预设（本地保存）、Ctrl+V 粘贴上传、输出尺寸与耗时预估、
+  下载可选 PNG / JPEG / WebP、失败卡一键重试、最近任务缩略图、快捷键（0/1/±/M/C）
+- **实时进度**：SSE 推送加载与推理各阶段进度 + 已用时/剩余时间；SQLite 历史记录带缩略图
+- **多语言界面**：简体中文 / English；主题跟随系统，可手动切换
 
 ## 快速上手（约 10 分钟）
 
@@ -92,15 +97,29 @@
 VOSR2-Lite/
 ├── app/integrated_app/     # 核心应用（FastAPI、引擎、路由、模板、static、locales）
 │   ├── engines/            # vosr2_engine.py：VOSR2 推理引擎（封装上游代码）
-│   ├── routes/             # restore（上传/任务/SSE）与 system（health/history/locale）
+│   ├── routes/             # restore（上传/任务/SSE/媒体）与 system（health/history/locale）
 │   ├── middleware/         # 安全头 / 限流 / 请求ID / 错误处理
-│   └── templates/ static/  # Jinja2 模板与静态资源
+│   └── templates/ static/  # Jinja2 模板；static/js 下 viewer.js（对比查看器）+ restore.js（工作台）
 ├── vosr/                   # 上游 cswry/VOSR（Apache-2.0）vendor 代码，改动记录见 UPSTREAM.md
 ├── model/                  # 模型权重目录（gitignore，用脚本下载）
 ├── scripts/                # download_model.py / smoke_infer.py
-├── tests/                  # pytest（应用冒烟 + 引擎单元）
+├── tests/                  # pytest（应用冒烟 + 媒体端点 + 引擎单元）
 └── docs/                   # agent-contract / USER_AGREEMENT
 ```
+
+### 主要 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/restore/` | 上传图片并创建任务（返回 `task_id`） |
+| GET | `/api/restore/{id}/progress` | SSE 实时进度（阶段 / 百分比 / 错误） |
+| POST | `/api/restore/{id}/cancel` | 取消排队或运行中的任务 |
+| GET | `/api/restore/{id}/result` | 任务结果元信息 |
+| GET | `/api/restore/{id}/input` | 原图（对比查看器左侧） |
+| GET | `/api/restore/{id}/preview?kind=input\|output&max=1600` | 缩放预览（磁盘缓存） |
+| GET | `/api/restore/{id}/download?format=png\|jpeg\|webp&quality=92` | 下载结果（可即时转格式） |
+| GET | `/api/system/history` | 分页历史（含 `task_id`、耗时、大小） |
+| GET | `/api/system/history/{record_id}/thumb` | 历史缩略图 |
 
 ## 开发
 

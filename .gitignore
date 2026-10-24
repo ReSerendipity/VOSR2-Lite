@@ -29,6 +29,8 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.db-journal
+# 缩略图 / 格式转换缓存（可随时重建）
+data/cache/
 outputs/*
 !outputs/.gitkeep
 logs/*

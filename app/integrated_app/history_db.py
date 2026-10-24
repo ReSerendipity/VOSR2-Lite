@@ -158,9 +158,18 @@ class HistoryDB:
         await self.db.commit()
         return True
 
+    # 记录 -> 最近一次任务（前端「打开对比」需要 task_id 才能取原图/结果）
+    _RECORD_SELECT = """
+        SELECT h.*, (
+            SELECT t.task_id FROM tasks t
+            WHERE t.record_id = h.id ORDER BY t.created_at DESC LIMIT 1
+        ) AS task_id
+        FROM history h
+    """
+
     async def get_record(self, record_id: int) -> dict | None:
         cursor = await self.db.execute(
-            "SELECT * FROM history WHERE id = ?", (record_id,))
+            self._RECORD_SELECT + " WHERE h.id = ?", (record_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
 
@@ -168,12 +177,12 @@ class HistoryDB:
                           status: str | None = None) -> tuple[list[dict], int]:
         where, params = "", []
         if status:
-            where, params = "WHERE status = ?", [status]
+            where, params = "WHERE h.status = ?", [status]
         cursor = await self.db.execute(
-            f"SELECT COUNT(*) FROM history {where}", params)
+            f"SELECT COUNT(*) FROM history h {where}", params)
         total = int((await cursor.fetchone())[0])
         cursor = await self.db.execute(
-            f"SELECT * FROM history {where} ORDER BY id DESC LIMIT ? OFFSET ?",
+            f"{self._RECORD_SELECT} {where} ORDER BY h.id DESC LIMIT ? OFFSET ?",
             (*params, page_size, (page - 1) * page_size))
         rows = await cursor.fetchall()
         return [dict(r) for r in rows], total

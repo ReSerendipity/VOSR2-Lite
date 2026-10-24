@@ -68,6 +68,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('sysModelMeta').textContent = model.model_loaded
             ? `${model.device} · ${model.load_seconds}s · ${model.vram_gb}GB` : '--';
 
+        // 任务队列：worker 状态 / 排队数 / 当前任务
+        const q = health.queue || {};
+        const running = !!q.worker_running;
+        document.getElementById('sysTasks').textContent = running
+            ? (q.pending > 0
+                ? `${q.pending} ${pick('system.queue_pending', '排队中')}`
+                : pick('system.queue_idle', '空闲'))
+            : pick('system.queue_stopped', 'worker 未运行');
+        document.getElementById('sysTasksMeta').textContent = q.current_task_id
+            ? `${pick('system.queue_current', '正在处理')}: ${q.current_task_id}`
+            : (q.capacity ? `${pick('system.queue_capacity', '容量')} ${q.capacity}` : '--');
+
         const ckpts = health.checkpoints || [];
         document.getElementById('ckptBody').innerHTML = ckpts.map(c => {
             const ok = c.present;

@@ -9,49 +9,220 @@
         <p class="sv-page-desc">{{ t('restore.desc') }}</p>
     </div>
 
-    <div class="sv-restore-layout">
-        <!-- 左：上传 + 参数 -->
-        <div class="sv-restore-main">
-            <div class="sv-card">
-                <div class="sv-card-header">
+    <div class="sv-workbench">
+        <!-- ── 主区：上传 → 进度 → 结果 ── -->
+        <div class="sv-workbench-main">
+
+            <!-- 上传 / 已选文件 -->
+            <section class="sv-card" id="uploadCard">
+                <div class="sv-card-header sv-card-header-row">
                     <h3><i class="bi bi-cloud-upload"></i> {{ t('restore.upload_title') }}</h3>
+                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnChangeFile" hidden>
+                        <i class="bi bi-arrow-repeat"></i> {{ t('restore.change_file') }}
+                    </button>
                 </div>
                 <div class="sv-card-body">
-                    <div class="sv-dropzone" id="dropzone">
-                        <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp,image/tiff" hidden>
+                    <div class="sv-dropzone" id="dropzone" tabindex="0" role="button"
+                         aria-label="{{ t('restore.select_file') }}">
+                        <input type="file" id="fileInput" hidden multiple
+                               accept="image/png,image/jpeg,image/webp,image/bmp,image/tiff">
                         <i class="bi bi-image sv-dropzone-icon"></i>
                         <p class="sv-dropzone-text">{{ t('restore.drop_hint') }}</p>
-                        <button class="sv-btn sv-btn-primary" id="btnSelectFile">{{ t('restore.select_file') }}</button>
-                        <p class="sv-dropzone-meta" id="fileMeta"></p>
+                        <button type="button" class="sv-btn sv-btn-primary" id="btnSelectFile">
+                            {{ t('restore.select_file') }}
+                        </button>
+                        <p class="sv-dropzone-kbd">
+                            <kbd>Ctrl</kbd> + <kbd>V</kbd> {{ t('restore.paste_hint') }}
+                            <span class="sv-dropzone-sep">·</span>
+                            {{ t('restore.multi_hint') }}
+                        </p>
+                    </div>
+
+                    <div class="sv-picked" id="pickedBox" hidden>
+                        <div class="sv-picked-thumb">
+                            <img id="pickedThumb" alt="">
+                        </div>
+                        <div class="sv-picked-info">
+                            <div class="sv-picked-name" id="pickedName"></div>
+                            <div class="sv-picked-meta" id="pickedMeta"></div>
+                            <div class="sv-picked-est" id="pickedEst"></div>
+                        </div>
+                    </div>
+
+                    <!-- 多图队列 -->
+                    <div class="sv-queue" id="queueBox" hidden>
+                        <div class="sv-queue-head">
+                            <span id="queueSummary"></span>
+                            <button type="button" class="sv-tool-btn" id="btnQueueClear">
+                                <i class="bi bi-x-circle"></i> {{ t('restore.queue_clear') }}
+                            </button>
+                        </div>
+                        <ul class="sv-queue-list" id="queueList"></ul>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="sv-card">
+            <!-- 进度 -->
+            <section class="sv-card sv-progress-card" id="progressCard" hidden>
+                <div class="sv-card-body">
+                    <div class="sv-progress-head">
+                        <span class="sv-progress-stage" id="progressStage">{{ t('status.processing') }}</span>
+                        <span class="sv-progress-pct" id="progressPct">0%</span>
+                        <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnCancel">
+                            <i class="bi bi-x-lg"></i> {{ t('common.cancel') }}
+                        </button>
+                    </div>
+                    <div class="sv-progress">
+                        <div class="sv-progress-bar" id="progressBar" style="width:0%"></div>
+                    </div>
+                    <div class="sv-progress-foot">
+                        <span id="progressText">--</span>
+                        <span class="sv-progress-timing">
+                            <span id="progressElapsed"></span>
+                            <span id="progressEta"></span>
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 失败 -->
+            <section class="sv-card sv-error-card" id="errorCard" hidden>
+                <div class="sv-card-body">
+                    <div class="sv-error-head">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <span>{{ t('restore.failed_title') }}</span>
+                    </div>
+                    <p class="sv-error-msg" id="errorMsg"></p>
+                    <div class="sv-error-actions">
+                        <button type="button" class="sv-btn sv-btn-primary sv-btn-sm" id="btnRetry">
+                            <i class="bi bi-arrow-counterclockwise"></i> {{ t('common.retry') }}
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 结果：对比查看器 -->
+            <section class="sv-card sv-result-card" id="resultCard" hidden>
+                <div class="sv-card-header sv-card-header-row">
+                    <h3><i class="bi bi-check2-circle"></i> {{ t('restore.result_title') }}</h3>
+                    <span class="sv-result-badge" id="resultBadge"></span>
+                </div>
+
+                <div class="sv-viewer" id="viewer" tabindex="0">
+                    <div class="sv-viewer-toolbar">
+                        <div class="sv-viewer-toolgroup">
+                            <button type="button" class="sv-tool-btn" data-viewer-action="compare"
+                                    id="btnCompare" title="{{ t('restore.compare_tip') }}">
+                                <i class="bi bi-layout-split"></i><span>{{ t('restore.compare') }}</span>
+                            </button>
+                            <button type="button" class="sv-tool-btn" data-viewer-action="loupe"
+                                    id="btnLoupe" title="{{ t('restore.magnifier_tip') }}">
+                                <i class="bi bi-zoom-in"></i><span>{{ t('restore.magnifier') }}</span>
+                            </button>
+                        </div>
+                        <div class="sv-viewer-toolgroup">
+                            <button type="button" class="sv-tool-btn" data-viewer-action="out" title="-">
+                                <i class="bi bi-dash-lg"></i>
+                            </button>
+                            <span class="sv-viewer-hud" id="viewerHud">--</span>
+                            <button type="button" class="sv-tool-btn" data-viewer-action="in" title="+">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                            <button type="button" class="sv-tool-btn" data-viewer-action="fit"
+                                    title="{{ t('restore.fit_tip') }}">
+                                <i class="bi bi-arrows-angle-contract"></i><span>{{ t('restore.fit') }}</span>
+                            </button>
+                            <button type="button" class="sv-tool-btn" data-viewer-action="one"
+                                    title="{{ t('restore.one_to_one_tip') }}">1:1</button>
+                        </div>
+                    </div>
+
+                    <div class="sv-viewer-stage">
+                        <div class="sv-viewer-canvas">
+                            <img class="sv-viewer-img sv-viewer-img-before" alt="{{ t('restore.before') }}">
+                            <span class="sv-viewer-tag sv-viewer-tag-before">{{ t('restore.before') }}</span>
+                            <div class="sv-viewer-after">
+                                <img class="sv-viewer-img sv-viewer-img-after" alt="{{ t('restore.after') }}">
+                                <span class="sv-viewer-tag sv-viewer-tag-after">{{ t('restore.after') }}</span>
+                            </div>
+                            <div class="sv-viewer-divider"><i class="bi bi-arrows"></i></div>
+                        </div>
+                        <div class="sv-viewer-empty">
+                            <i class="bi bi-image"></i>
+                            <span>{{ t('restore.no_result_yet') }}</span>
+                        </div>
+                        <div class="sv-viewer-loupe" hidden>
+                            <img class="loupe-before" alt="">
+                            <div class="loupe-after-wrap"><img class="loupe-after" alt=""></div>
+                        </div>
+                    </div>
+
+                    <p class="sv-viewer-hint">{{ t('restore.viewer_hint') }}</p>
+                </div>
+
+                <div class="sv-result-actions">
+                    <div class="sv-download-group">
+                        <select class="sv-form-control sv-select-inline" id="downloadFormat">
+                            <option value="png">PNG</option>
+                            <option value="jpeg">JPEG</option>
+                            <option value="webp">WebP</option>
+                        </select>
+                        <a class="sv-btn sv-btn-primary sv-btn-sm" id="btnDownload" href="#" download>
+                            <i class="bi bi-download"></i> {{ t('common.download') }}
+                        </a>
+                    </div>
+                    <button type="button" class="sv-btn sv-btn-outline sv-btn-sm" id="btnAgain">
+                        <i class="bi bi-arrow-repeat"></i> {{ t('restore.restore_again') }}
+                    </button>
+                    <span class="sv-result-meta" id="resultMeta"></span>
+                </div>
+            </section>
+        </div>
+
+        <!-- ── 侧栏：参数 ── -->
+        <aside class="sv-workbench-side">
+            <section class="sv-card">
                 <div class="sv-card-header">
                     <h3><i class="bi bi-sliders"></i> {{ t('restore.params_title') }}</h3>
                 </div>
                 <div class="sv-card-body">
+                    <!-- 预设 -->
+                    <div class="sv-preset-row">
+                        <select class="sv-form-control" id="presetSelect"
+                                aria-label="{{ t('restore.preset') }}">
+                            <option value="">{{ t('restore.preset_placeholder') }}</option>
+                        </select>
+                        <button type="button" class="sv-tool-btn" id="btnPresetSave"
+                                title="{{ t('restore.preset_save') }}">
+                            <i class="bi bi-bookmark-plus"></i>
+                        </button>
+                        <button type="button" class="sv-tool-btn" id="btnPresetDelete" disabled
+                                title="{{ t('restore.preset_delete') }}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+
                     <div class="sv-form-grid">
                         <div class="sv-form-item">
-                            <label>{{ t('restore.upscale') }}</label>
+                            <label for="paramUpscale">{{ t('restore.upscale') }}</label>
                             <select class="sv-form-control" id="paramUpscale">
+                                <option value="1">×1</option>
                                 <option value="2">×2</option>
                                 <option value="3">×3</option>
                                 <option value="4" selected>×4</option>
                             </select>
                         </div>
                         <div class="sv-form-item">
-                            <label>{{ t('restore.steps') }}</label>
+                            <label for="paramSteps">{{ t('restore.steps') }}</label>
                             <select class="sv-form-control" id="paramSteps">
-                                <option value="1" selected>1（一步蒸馏）</option>
+                                <option value="1" selected>{{ t('restore.steps_one') }}</option>
                                 <option value="4">4</option>
                                 <option value="8">8</option>
-                                <option value="25">25（多步模型）</option>
+                                <option value="25">{{ t('restore.steps_multi') }}</option>
                             </select>
                         </div>
                         <div class="sv-form-item">
-                            <label>{{ t('restore.align_method') }}</label>
+                            <label for="paramAlign">{{ t('restore.align_method') }}</label>
                             <select class="sv-form-control" id="paramAlign">
                                 <option value="wavelet" selected>{{ t('restore.align.wavelet') }}</option>
                                 <option value="adain">{{ t('restore.align.adain') }}</option>
@@ -59,11 +230,17 @@
                             </select>
                         </div>
                         <div class="sv-form-item">
-                            <label>{{ t('restore.seed') }}</label>
-                            <input type="number" class="sv-form-control" id="paramSeed" value="42" min="-1">
+                            <label for="paramSeed">{{ t('restore.seed') }}</label>
+                            <div class="sv-input-group">
+                                <input type="number" class="sv-form-control" id="paramSeed" value="42" min="-1">
+                                <button type="button" class="sv-tool-btn" id="btnDice"
+                                        title="{{ t('restore.random_seed') }}">
+                                    <i class="bi bi-dice-5"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="sv-form-item">
-                            <label>{{ t('restore.tile_size') }}</label>
+                            <label for="paramTile">{{ t('restore.tile_size') }}</label>
                             <select class="sv-form-control" id="paramTile">
                                 <option value="0" selected>{{ t('restore.tile.auto') }}</option>
                                 <option value="512">512</option>
@@ -71,7 +248,7 @@
                             </select>
                         </div>
                         <div class="sv-form-item">
-                            <label>{{ t('restore.vae_tile_size') }}</label>
+                            <label for="paramVaeTile">{{ t('restore.vae_tile_size') }}</label>
                             <select class="sv-form-control" id="paramVaeTile">
                                 <option value="0" selected>{{ t('restore.tile.auto') }}</option>
                                 <option value="1024">1024</option>
@@ -79,186 +256,32 @@
                             </select>
                         </div>
                     </div>
-                    <p class="sv-form-hint" style="margin-top:10px;">{{ t('restore.tile_hint') }}</p>
+
+                    <p class="sv-form-hint">{{ t('restore.tile_hint') }}</p>
+
                     <div class="sv-form-actions">
-                        <button class="sv-btn sv-btn-primary" id="btnStart" disabled>
+                        <button type="button" class="sv-btn sv-btn-primary" id="btnStart" disabled>
                             <i class="bi bi-lightning-charge"></i> {{ t('restore.start') }}
                         </button>
                         <span class="sv-form-hint" id="startHint">{{ t('restore.need_file') }}</span>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- 右：进度 + 结果 -->
-        <div class="sv-restore-side">
-            <div class="sv-card" id="progressCard" style="display:none;">
-                <div class="sv-card-header">
-                    <h3><i class="bi bi-activity"></i> {{ t('restore.progress_title') }}</h3>
-                </div>
-                <div class="sv-card-body">
-                    <div class="sv-progress">
-                        <div class="sv-progress-bar" id="progressBar" style="width:0%"></div>
-                    </div>
-                    <p class="sv-progress-text" id="progressText">--</p>
-                    <button class="sv-btn sv-btn-outline sv-btn-sm" id="btnCancel" style="display:none;">
-                        {{ t('common.cancel') }}
-                    </button>
-                </div>
-            </div>
-
-            <div class="sv-card" id="resultCard" style="display:none;">
-                <div class="sv-card-header">
-                    <h3><i class="bi bi-check2-circle"></i> {{ t('restore.result_title') }}</h3>
-                </div>
-                <div class="sv-card-body">
-                    <div class="sv-compare" id="compareWrap">
-                        <img id="resultImage" alt="result">
-                    </div>
-                    <div class="sv-result-actions">
-                        <a class="sv-btn sv-btn-primary sv-btn-sm" id="btnDownload" href="#" download>
-                            <i class="bi bi-download"></i> {{ t('common.download') }}
-                        </a>
-                        <span class="sv-result-meta" id="resultMeta"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
+            </section>
+        </aside>
     </div>
+
+    <!-- ── 最近任务 ── -->
+    <section class="sv-home-section" id="recentSection" hidden>
+        <div class="sv-section-header">
+            <h2 class="sv-section-title">{{ t('restore.recent_title') }}</h2>
+            <a class="sv-section-link" href="/history">{{ t('home.view_all') }} →</a>
+        </div>
+        <div class="sv-recent-grid" id="recentGrid"></div>
+    </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script nonce="{{ csp_nonce | default('') }}">
-document.addEventListener('DOMContentLoaded', () => {
-    const I = window.__I18N__ || {};
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('fileInput');
-    const fileMeta = document.getElementById('fileMeta');
-    const btnStart = document.getElementById('btnStart');
-    const startHint = document.getElementById('startHint');
-    const progressCard = document.getElementById('progressCard');
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-    const btnCancel = document.getElementById('btnCancel');
-    const resultCard = document.getElementById('resultCard');
-    const resultImage = document.getElementById('resultImage');
-    const btnDownload = document.getElementById('btnDownload');
-    const resultMeta = document.getElementById('resultMeta');
-
-    let currentFile = null;
-    let currentTaskId = null;
-    let eventSource = null;
-
-    const pick = (k, d) => I[k] || d;
-
-    dropzone.addEventListener('click', e => {
-        if (e.target.id !== 'btnSelectFile') return;
-        fileInput.click();
-    });
-    btnStart; // noop guard
-    document.getElementById('btnSelectFile').addEventListener('click', e => {
-        e.stopPropagation();
-        fileInput.click();
-    });
-
-    ['dragover', 'dragenter'].forEach(ev => dropzone.addEventListener(ev, e => {
-        e.preventDefault();
-        dropzone.classList.add('dragover');
-    }));
-    ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, e => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-    }));
-    dropzone.addEventListener('drop', e => {
-        if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files.length) setFile(fileInput.files[0]);
-    });
-
-    function setFile(file) {
-        const ok = ['image/png','image/jpeg','image/webp','image/bmp','image/tiff']
-            .includes(file.type) || /\.(png|jpe?g|webp|bmp|tiff?)$/i.test(file.name);
-        if (!ok) { VOSR2.toast(pick('restore.err_format', '不支持的图片格式'), 'error'); return; }
-        currentFile = file;
-        fileMeta.textContent = file.name + ' · ' + VOSR2.formatSize(file.size);
-        btnStart.disabled = false;
-        startHint.textContent = '';
-    }
-
-    btnStart.addEventListener('click', () => { if (currentFile) startRestore(); });
-
-    btnCancel.addEventListener('click', async () => {
-        if (!currentTaskId) return;
-        try {
-            await VOSR2.api.post(`/api/restore/${currentTaskId}/cancel`, {});
-            VOSR2.toast(pick('restore.cancelled', '已取消'), 'info');
-        } catch (err) { VOSR2.toast(err.message, 'error'); }
-    });
-
-    async function startRestore() {
-        btnStart.disabled = true;
-        progressCard.style.display = '';
-        resultCard.style.display = 'none';
-        progressBar.style.width = '0%';
-        progressText.textContent = pick('common.processing', '处理中...');
-        btnCancel.style.display = '';
-
-        const form = new FormData();
-        form.append('file', currentFile);
-        form.append('upscale', document.getElementById('paramUpscale').value);
-        form.append('steps', document.getElementById('paramSteps').value);
-        form.append('align_method', document.getElementById('paramAlign').value);
-        form.append('seed', document.getElementById('paramSeed').value);
-        form.append('tile_size', document.getElementById('paramTile').value);
-        form.append('vae_tile_size', document.getElementById('paramVaeTile').value);
-
-        try {
-            const data = await VOSR2.api.postForm('/api/restore/', form);
-            currentTaskId = data.task_id;
-            listenProgress(currentTaskId);
-        } catch (err) {
-            VOSR2.toast(err.message || pick('common.failed', '失败'), 'error');
-            btnStart.disabled = false;
-            btnCancel.style.display = 'none';
-        }
-    }
-
-    function listenProgress(taskId) {
-        if (eventSource) eventSource.close();
-        eventSource = new EventSource(`/api/restore/${taskId}/progress`);
-        eventSource.onmessage = ev => {
-            let d;
-            try { d = JSON.parse(ev.data); } catch { return; }
-            const pct = Math.round((d.progress || 0) * 100);
-            progressBar.style.width = pct + '%';
-            progressText.textContent = (d.message || '') + ' ' + pct + '%';
-            if (d.status === 'completed') {
-                eventSource.close();
-                btnCancel.style.display = 'none';
-                btnStart.disabled = false;
-                showResult(taskId, d);
-            } else if (d.status === 'failed' || d.status === 'cancelled') {
-                eventSource.close();
-                btnCancel.style.display = 'none';
-                btnStart.disabled = false;
-                progressText.textContent = d.error || d.status;
-                VOSR2.toast(d.error || pick('common.failed', '失败'), 'error');
-            }
-        };
-        eventSource.onerror = () => { /* 断线由 EventSource 自动重连 */ };
-    }
-
-    async function showResult(taskId, d) {
-        resultCard.style.display = '';
-        const url = `/api/restore/${taskId}/download`;
-        resultImage.src = url;
-        btnDownload.href = url;
-        const size = d.output_size ? ' · ' + VOSR2.formatSize(d.output_size) : '';
-        resultMeta.textContent = taskId + size;
-        VOSR2.toast(pick('restore.done', '修复完成'), 'success');
-    }
-});
-</script>
+<script src="/static/js/viewer.js?v={{ app_version | default('0.1.0') }}"></script>
+<script src="/static/js/restore.js?v={{ app_version | default('0.1.0') }}"></script>
 {% endblock %}

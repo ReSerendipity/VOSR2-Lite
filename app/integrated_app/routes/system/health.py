@@ -9,8 +9,13 @@ import os
 
 from fastapi import APIRouter, Depends
 
-from app.integrated_app.dependencies import get_config, get_model_manager
+from app.integrated_app.dependencies import (
+    get_config,
+    get_model_manager,
+    get_task_queue,
+)
 from app.integrated_app.model_manager import ModelManager
+from app.integrated_app.task_queue import TaskQueue
 from app.integrated_app.utils.response import respond_success
 
 router = APIRouter(prefix="/api/system", tags=["系统"])
@@ -39,6 +44,7 @@ def _gpu_info() -> dict:
 
 @router.get("/health")
 async def health(model_manager: ModelManager = Depends(get_model_manager),
+                 task_queue: TaskQueue = Depends(get_task_queue),
                  config: dict = Depends(get_config)):
     """综合健康状态（首页 Hero 与系统状态页使用）。"""
     gpu = await __import__("asyncio").to_thread(_gpu_info)
@@ -59,6 +65,7 @@ async def health(model_manager: ModelManager = Depends(get_model_manager),
              "min_vram_gb": c.min_vram_gb, "type": c.ckpt_type}
             for c in checkpoints
         ],
+        "queue": task_queue.stats(),
         "default_checkpoint": config.get("model", {}).get(
             "default_checkpoint", "VOSR2"),
     })

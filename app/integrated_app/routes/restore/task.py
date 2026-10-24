@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 ReSerendipity
 # SPDX-License-Identifier: Apache-2.0
-"""任务状态路由：SSE 进度 / 取消 / 结果 / 下载。
+"""任务状态路由：SSE 进度 / 取消 / 结果。
 
 - GET  /api/restore/{task_id}/progress  SSE 实时进度（读 tasks 表快照）
 - POST /api/restore/{task_id}/cancel    取消排队中/运行中的任务
 - GET  /api/restore/{task_id}/result    任务结果信息
-- GET  /api/restore/{task_id}/download  下载结果（PathGuard 白名单）
+
+媒体类端点（原图 / 预览 / 下载）见 media.py。
 """
 
 from __future__ import annotations
@@ -16,14 +17,11 @@ import json
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
-from loguru import logger
+from fastapi.responses import StreamingResponse
 
-from app.integrated_app.config import PROJECT_ROOT
 from app.integrated_app.dependencies import get_config, get_history_db, get_task_queue
 from app.integrated_app.history_db import HistoryDB
 from app.integrated_app.routes.restore import common
-from app.integrated_app.security.path_guard import build_default_path_guard
 from app.integrated_app.task_queue import TaskQueue
 from app.integrated_app.utils.response import respond_success
 
@@ -143,28 +141,4 @@ async def get_result(task_id: str,
     return respond_success(payload)
 
 
-@router.get("/{task_id}/download")
-async def download_result(
-    task_id: str,
-    history_db: HistoryDB = Depends(get_history_db),
-    config: dict = Depends(get_config),
-):
-    task = await common.get_task_state(task_id, history_db)
-    if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    if task["status"] != "completed":
-        raise HTTPException(status_code=400, detail="任务尚未完成")
-    output_path = task.get("output_path") or ""
-    if not output_path or not await asyncio.to_thread(os.path.exists, output_path):
-        raise HTTPException(status_code=404, detail="输出文件不存在")
-
-    allowed = config.get("runtime", {}).get("security", {}).get(
-        "allowed_base_dirs", ["outputs/", "data/uploads/"])
-    guard = build_default_path_guard(PROJECT_ROOT, allowed)
-    if not guard.is_safe_path(output_path):
-        logger.warning(f"下载路径不在允许范围: {output_path}")
-        raise HTTPException(status_code=403, detail="不允许下载该路径")
-
-    return FileResponse(path=output_path,
-                        filename=os.path.basename(output_path),
-                        media_type="image/png")
+# 下载 / 原图 / 预览见 media.py（含格式转换与缩略图缓存）
