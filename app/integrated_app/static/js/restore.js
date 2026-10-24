@@ -125,7 +125,10 @@
         try {
             writeParams(JSON.parse(localStorage.getItem(LAST_PARAMS_KEY) || 'null'));
         } catch (_) { /* 忽略损坏的本地数据 */ }
-        Object.values(paramFields).forEach(f => f.addEventListener('change', persistParams));
+        Object.values(paramFields).forEach(f => f.addEventListener('change', () => {
+            persistParams();
+            updateEstimate();
+        }));
         function persistParams() {
             try {
                 localStorage.setItem(LAST_PARAMS_KEY, JSON.stringify(readParams()));
@@ -445,9 +448,11 @@
             const oh = first.natural.h * p.upscale;
             const overLimit = Math.max(ow, oh) > MAX_OUTPUT_SIDE;
             const mp = (ow * oh) / 1e6;
-            // 实测拟合（RTX 5070 Ti）：耗时 ≈ 1.5s + 0.17·MP²（注意力随 token 数平方增长）
-            //   11.1 MP（3096²）≈ 22s，37.7 MP（6144²）≈ 243s
-            const secs = Math.round(1.5 + 0.17 * mp * mp);
+            const steps = Math.max(1, Number(paramFields.steps.value) || 1);
+            // 实测拟合（RTX 5070 Ti）：t ≈ 1.5s + steps·(0.3s + 0.17·MP²)
+            //   单步 11.1MP（3096²）≈ 23s、37.7MP（6144²）≈ 243s；
+            //   25 步 0.26MP（512²）≈ 9.3s（实测 8.8s）
+            const secs = Math.round(1.5 + steps * (0.3 + 0.17 * mp * mp));
             const total = state.files.length;
 
             if (total === 1) {
