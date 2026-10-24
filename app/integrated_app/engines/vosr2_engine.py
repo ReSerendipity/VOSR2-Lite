@@ -204,6 +204,7 @@ class VOSR2Engine:
 
         self._cb("load_vae", 0.05)
         self.vae = self._load_vae(args, dev)
+        self.light_decoder = self._build_sd2_decoder(args)
         self._cb("load_venc", 0.25)
         self.venc = self._load_dinov2(args, dev)
         self._cb("load_dit", 0.55)
@@ -251,6 +252,26 @@ class VOSR2Engine:
             merged["ae_path"] = self._resolve(merged["ae_path"])
         return types.SimpleNamespace(**merged)
 
+    def _build_sd2_decoder(self, args):
+        """sd2 系（0.5B）解码入口：优先轻量解码器，缺失时回退标准 VAE 解码。
+
+        上游 `tiled_vae.decode_latent` 对 sd2 分支直接调用
+        `light_decoder(sr_u)`（`sd21_lwdecoder.pth`）。上游推理仓未公开该
+        解码器的结构定义，本仓无法据权重复刻，因此回退到 SD2.1 VAE 自带
+        解码器——数值空间一致（latent/scaling_factor → [-1,1]），只是更慢、
+        更吃显存。qwen 系（1.4B）不走此路径，传 None 即可。
+        """
+        if getattr(args, "ae_type", "qwen") != "sd2":
+            return None
+        logger.warning(
+            "sd2 检查点：未内置轻量解码器（sd21_lwdecoder.pth 结构未公开），"
+            "回退标准 SD2.1 VAE 解码（更慢、显存占用更高）")
+
+        def _decode(latent):
+            return self.vae.decode(latent, return_dict=False)[0]
+
+        return _decode
+
     def _load_vae(self, args, dev):
         ae_type = args.ae_type
         if ae_type == "qwen":
@@ -279,26 +300,38 @@ class VOSR2Engine:
         return vae.to(dev).eval()
 
     def _load_dinov2(self, args, dev):
-        """从 model/torch_cache 离线加载 DINOv2-L（本地 vendored 架构 + 官方权重）。
+        """从 model/torch_cache 离线加载 DINOv2（本地 vendored 架构 + 官方权重）。
 
         2026-10-23 采纳社区方案（ComfyUI-VOSR2 的 models/dinov2.py，Apache-2.0）：
         不再用 torch.hub.load（会拉取并执行缓存仓库代码、还要求随仓库 clone
         dinov2 源码），改为本地复刻架构 + 直接加载官方 checkpoint。
-        """
-        from vosr.models.dinov2_vitl14 import build_dinov2_vitl14
 
-        if args.enc_type != "dinov2l":
+        2026-10-24 补齐 ViT-B/14：0.5B 系检查点（VOSR_0.5B_os/_ms）的
+        args.enc_type 为 dinov2b、enc_dim 为 768。
+        """
+        from vosr.models.dinov2_vitl14 import DINOV2_VARIANTS
+
+        variant = DINOV2_VARIANTS.get(getattr(args, "enc_type", ""))
+        if variant is None:
             raise NotImplementedError(
-                f"当前仅 vendored 了 dinov2l 架构（VOSR2 / 1.4B 系使用），"
-                f"暂不支持 {args.enc_type}（0.5B 系的 dinov2b 需另行复刻）")
+                f"不支持的视觉编码器 enc_type={args.enc_type}；"
+                f"已 vendored: {', '.join(sorted(DINOV2_VARIANTS))}")
+        builder, weight_name, enc_dim = variant
+
+        declared = int(getattr(args, "enc_dim", enc_dim))
+        if declared != enc_dim:
+            raise ValueError(
+                f"args.enc_dim={declared} 与 {args.enc_type} 的 {enc_dim} 不一致，"
+                "请检查检查点 args.json")
+
         ckpt = os.path.join(self.model_root, "torch_cache", "checkpoints",
-                            "dinov2_vitl14_pretrain.pth")
+                            weight_name)
         if not os.path.isfile(ckpt):
             raise FileNotFoundError(
                 f"DINOv2 权重不存在: {ckpt}；"
                 "请运行 python scripts/download_model.py")
 
-        encoder = build_dinov2_vitl14()
+        encoder = builder()
         state = torch.load(ckpt, map_location="cpu")
         encoder.load_state_dict(state, strict=False)
         encoder = encoder.to(dev).eval()

@@ -162,3 +162,48 @@ def test_i18n():
     assert i18n.t("no.such.key") == "no.such.key"
     assert i18n.set_locale("en") == "en"
     assert i18n.set_locale("fr") == "zh"  # 非法值回退默认
+
+
+def test_dinov2_variant_registry():
+    """1.4B 用 dinov2l、0.5B 用 dinov2b；两者架构维度必须与 args.enc_dim 对齐。"""
+    from vosr.models.dinov2_vitl14 import (
+        DINOV2_VARIANTS,
+        build_dinov2_vitb14,
+        build_dinov2_vitl14,
+    )
+
+    assert set(DINOV2_VARIANTS) == {"dinov2l", "dinov2b"}
+    builder_l, weight_l, dim_l = DINOV2_VARIANTS["dinov2l"]
+    builder_b, weight_b, dim_b = DINOV2_VARIANTS["dinov2b"]
+    assert (dim_l, dim_b) == (1024, 768)
+    assert weight_l == "dinov2_vitl14_pretrain.pth"
+    assert weight_b == "dinov2_vitb14_pretrain.pth"
+
+    vitl = build_dinov2_vitl14()
+    assert vitl.embed_dim == 1024 and len(vitl.blocks) == 24
+    vitb = build_dinov2_vitb14()
+    assert vitb.embed_dim == 768 and len(vitb.blocks) == 12
+    assert builder_l is build_dinov2_vitl14 and builder_b is build_dinov2_vitb14
+
+
+def test_sd2_decoder_fallback():
+    """sd2 检查点没有轻量解码器时，应回退到标准 VAE 解码（可调用）。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    engine = VOSR2Engine("VOSR_0.5B_os", "/tmp/whatever")
+    assert engine._build_sd2_decoder(SimpleNamespace(ae_type="qwen")) is None
+
+    calls = {}
+
+    class _FakeVAE:
+        def decode(self, latent, return_dict=False):
+            calls["latent"] = latent
+            return ("decoded",)
+
+    engine.vae = _FakeVAE()
+    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"))
+    assert callable(decoder)
+    assert decoder("z") == "decoded"
+    assert calls["latent"] == "z"
