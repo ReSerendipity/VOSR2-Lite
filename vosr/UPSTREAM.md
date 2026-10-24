@@ -53,3 +53,4 @@
 |---|---|
 | `vosr/models/dinov2_vitl14.py` | 在原有 ViT-L/14 基础上补 ViT-B/14（`DINOV2_VITB14_CONFIG`）与 `DINOV2_VARIANTS` 注册表，覆盖 0.5B 系检查点的 `enc_type=dinov2b`（enc_dim=768）；架构仍来自 ComfyUI-VOSR2 社区复刻（Apache-2.0） |
 | 引擎侧（非 vendored） | `vosr/tiled_vae.py` 的 sd2 分支要求传入 `light_decoder`（`sd21_lwdecoder.pth`），但上游未公开其结构，无法据权重复刻；引擎在 `_build_sd2_decoder()` 中回退到 SD2.1 VAE 自带解码器（`vae.decode`），数值空间一致、速度更慢。**未修改 vendored 代码** |
+| `vosr/models/light_decoder.py` | 新增：原样 vendor 上游 `models/light_decoder.py`（SD2.1 轻量解码器，通道数减半），供 0.5B 系解码；引擎在 `_build_sd2_decoder()` 中优先加载 `sd21_lwdecoder.pth`，缺失时回退标准 VAE 解码 |

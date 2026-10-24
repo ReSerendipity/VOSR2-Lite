@@ -1,3 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 ReSerendipity
+# SPDX-FileCopyrightText: Copyright (c) VOSR authors (cswry/VOSR, Apache-2.0)
+# SPDX-License-Identifier: Apache-2.0
+#
+# 来源：cswry/VOSR 的 models/light_decoder.py（Apache-2.0），原样 vendor。
+# 作用：SD2.1 的轻量解码器（通道数减半），0.5B 系检查点（VOSR_0.5B_os/_ms）
+# 解码时使用；权重文件 sd21_lwdecoder.pth。
+# 改动记录见 vosr/UPSTREAM.md。
+
 # coding=utf-8
 """
 Lightweight SD2 VAE Decoder with halved channel dimensions.

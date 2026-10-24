@@ -65,8 +65,9 @@
 `stable-diffusion-2-1-base/vae/` + `torch_cache/checkpoints/dinov2_vitb14_pretrain.pth`。
 DINOv2 架构已本地 vendored，无需 clone 上游仓库。
 
-> 0.5B 系：上游的轻量解码器 `sd21_lwdecoder.pth` 结构未公开，本仓回退到
-> SD2.1 VAE 自带解码器（数值一致、速度较慢），详见 `model/README.md`。
+> 多步模型（`*_ms`）：建议 25 步、输出长边 ≥384px（训练分辨率 512；
+> 实测 ≤256px 会发散，引擎会前置拒绝）。0.5B 系使用上游轻量解码器
+> `sd21_lwdecoder.pth`，详见 `model/README.md`。
 
 > VOSR2 是**生成式**模型：输出可能包含输入不支持的"合理"细节；文字密集图像
 > （路牌 / UI / 文档）的小字可能被"重写"，请自行评估可读性风险。

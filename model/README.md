@@ -40,9 +40,11 @@ python scripts/download_model.py --checkpoint VOSR_0.5B_os --source modelscope
 - **DINOv2**：`vosr/models/dinov2_vitl14.py` 本地复刻了 ViT-L/14 与 ViT-B/14
   （来自 ComfyUI-VOSR2 社区节点，Apache-2.0），只需权重文件，无需 clone
   facebookresearch/dinov2 仓库。`enc_type` 由检查点 `args.json` 决定。
-- **0.5B 系的解码**：上游推理代码对 sd2 分支调用轻量解码器
-  `sd21_lwdecoder.pth`，但其网络结构未公开，本仓无法据权重复刻；引擎因此
-  回退到 SD2.1 VAE 自带解码器（数值空间一致，速度更慢、显存占用更高），
-  启动时会在日志中给出提示。该文件仍会下载，仅为将来接入官方解码器预留。
+- **0.5B 系的解码**：轻量解码器结构来自上游 `models/light_decoder.py`
+  （已 vendor 到 `vosr/models/light_decoder.py`），权重 `sd21_lwdecoder.pth`
+  由下载脚本获取；缺权重时引擎回退 SD2.1 VAE 自带解码器（数值一致、更慢）。
+- **多步模型（`*_ms`）的分辨率下限**：训练分辨率 512，实测输出 ≤256px 时
+  25 步轨迹发散（糊成色块），384px 起正常。引擎对 `steps>1` 且输出长边
+  < 384px 的请求直接报错并给出建议（提高倍率 / 换大图 / 改用 1 步）。
 
 本目录内容被 .gitignore 忽略，请勿把权重提交入库。

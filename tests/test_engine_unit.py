@@ -186,14 +186,17 @@ def test_dinov2_variant_registry():
     assert builder_l is build_dinov2_vitl14 and builder_b is build_dinov2_vitb14
 
 
-def test_sd2_decoder_fallback():
-    """sd2 检查点没有轻量解码器时，应回退到标准 VAE 解码（可调用）。"""
+def test_sd2_decoder_fallback(tmp_path):
+    """sd2 缺轻量解码器权重时回退标准 VAE 解码；qwen 系返回 None。"""
     from types import SimpleNamespace
+
+    import torch
 
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
 
-    engine = VOSR2Engine("VOSR_0.5B_os", "/tmp/whatever")
-    assert engine._build_sd2_decoder(SimpleNamespace(ae_type="qwen")) is None
+    dev = torch.device("cpu")
+    engine = VOSR2Engine("VOSR_0.5B_os", str(tmp_path))
+    assert engine._build_sd2_decoder(SimpleNamespace(ae_type="qwen"), dev) is None
 
     calls = {}
 
@@ -203,7 +206,34 @@ def test_sd2_decoder_fallback():
             return ("decoded",)
 
     engine.vae = _FakeVAE()
-    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"))
+    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"), dev)
     assert callable(decoder)
     assert decoder("z") == "decoded"
     assert calls["latent"] == "z"
+
+
+def test_sd2_light_decoder_loads(tmp_path):
+    """有 sd21_lwdecoder.pth 时应加载官方轻量解码器（不是回退 lambda）。"""
+    from types import SimpleNamespace
+
+    import torch
+
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+    from vosr.models.light_decoder import LightDecoder
+
+    ckpt = tmp_path / "sd21_lwdecoder.pth"
+    torch.save(LightDecoder().state_dict(), ckpt)
+
+    engine = VOSR2Engine("VOSR_0.5B_os", str(tmp_path))
+    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"),
+                                        torch.device("cpu"))
+    assert isinstance(decoder, LightDecoder)
+    out = decoder(torch.zeros(1, 4, 8, 8))
+    assert tuple(out.shape) == (1, 3, 64, 64)
+
+
+def test_multistep_min_side_guard():
+    """多步模型的最小输出边长门槛必须存在且覆盖已知失效区间（≤256px）。"""
+    from app.integrated_app.engines.vosr2_engine import MULTISTEP_MIN_SIDE
+
+    assert 256 < MULTISTEP_MIN_SIDE <= 512

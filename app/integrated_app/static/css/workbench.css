@@ -309,3 +309,7 @@
     .sv-history-name { max-width: 140px; }
 }
 
+
+/* 检查点选择：占满整行，提示紧随其后 */
+.sv-form-item-wide { grid-column: 1 / -1; }
+.sv-form-hint-tight { margin: 4px 0 0; font-size: 11px; }
