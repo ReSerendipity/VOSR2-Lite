@@ -64,6 +64,10 @@ def _pad_to_square(x: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
     return padded, (h, w)
 
 
+# 多步模型（*_ms）训练分辨率为 512，输出过小时（实测 ≤256px）25 步轨迹会发散；
+# 384px 起稳定（2026-10-24 实测：256→糊成色块，384/512/1548 正常）
+MULTISTEP_MIN_SIDE = 384
+
 IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225)
 
@@ -204,6 +208,7 @@ class VOSR2Engine:
 
         self._cb("load_vae", 0.05)
         self.vae = self._load_vae(args, dev)
+        self.light_decoder = self._build_sd2_decoder(args, dev)
         self._cb("load_venc", 0.25)
         self.venc = self._load_dinov2(args, dev)
         self._cb("load_dit", 0.55)
@@ -251,6 +256,44 @@ class VOSR2Engine:
             merged["ae_path"] = self._resolve(merged["ae_path"])
         return types.SimpleNamespace(**merged)
 
+    def _build_sd2_decoder(self, args, dev):
+        """sd2 系（0.5B）解码入口：官方轻量解码器优先，缺失时回退标准 VAE 解码。
+
+        `vosr/tiled_vae.py` 的 sd2 分支直接调用 `light_decoder(sr_u)`。
+        轻量解码器结构来自上游 `models/light_decoder.py`（已 vendor 到
+        `vosr/models/light_decoder.py`），权重为 `model/sd21_lwdecoder.pth`；
+        缺权重时回退 SD2.1 VAE 自带解码器（数值空间一致，但更慢、更吃显存）。
+        qwen 系（1.4B）不走此路径，返回 None。
+        """
+        if getattr(args, "ae_type", "qwen") != "sd2":
+            return None
+
+        ckpt = os.path.join(self.model_root, "sd21_lwdecoder.pth")
+        if os.path.isfile(ckpt):
+            from vosr.models.light_decoder import LightDecoder
+
+            decoder = LightDecoder()
+            state = torch.load(ckpt, map_location="cpu")
+            if isinstance(state, dict):
+                for key in ("state_dict", "model", "decoder"):
+                    if key in state and isinstance(state[key], dict):
+                        state = state[key]
+                        break
+            missing, unexpected = decoder.load_state_dict(state, strict=False)
+            if missing:
+                logger.warning(f"轻量解码器缺少 {len(missing)} 个权重，"
+                               f"效果可能异常（示例: {missing[:3]}）")
+            decoder = decoder.to(dev).eval()
+            for param in decoder.parameters():
+                param.requires_grad_(False)
+            logger.info(f"已加载 SD2.1 轻量解码器: {ckpt}")
+            return decoder
+
+        logger.warning(
+            "sd2 检查点未找到 sd21_lwdecoder.pth，回退标准 SD2.1 VAE 解码"
+            "（更慢、显存占用更高）；如需官方速度请重新运行下载脚本")
+        return lambda latent: self.vae.decode(latent, return_dict=False)[0]
+
     def _load_vae(self, args, dev):
         ae_type = args.ae_type
         if ae_type == "qwen":
@@ -279,26 +322,38 @@ class VOSR2Engine:
         return vae.to(dev).eval()
 
     def _load_dinov2(self, args, dev):
-        """从 model/torch_cache 离线加载 DINOv2-L（本地 vendored 架构 + 官方权重）。
+        """从 model/torch_cache 离线加载 DINOv2（本地 vendored 架构 + 官方权重）。
 
         2026-10-23 采纳社区方案（ComfyUI-VOSR2 的 models/dinov2.py，Apache-2.0）：
         不再用 torch.hub.load（会拉取并执行缓存仓库代码、还要求随仓库 clone
         dinov2 源码），改为本地复刻架构 + 直接加载官方 checkpoint。
-        """
-        from vosr.models.dinov2_vitl14 import build_dinov2_vitl14
 
-        if args.enc_type != "dinov2l":
+        2026-10-24 补齐 ViT-B/14：0.5B 系检查点（VOSR_0.5B_os/_ms）的
+        args.enc_type 为 dinov2b、enc_dim 为 768。
+        """
+        from vosr.models.dinov2_vitl14 import DINOV2_VARIANTS
+
+        variant = DINOV2_VARIANTS.get(getattr(args, "enc_type", ""))
+        if variant is None:
             raise NotImplementedError(
-                f"当前仅 vendored 了 dinov2l 架构（VOSR2 / 1.4B 系使用），"
-                f"暂不支持 {args.enc_type}（0.5B 系的 dinov2b 需另行复刻）")
+                f"不支持的视觉编码器 enc_type={args.enc_type}；"
+                f"已 vendored: {', '.join(sorted(DINOV2_VARIANTS))}")
+        builder, weight_name, enc_dim = variant
+
+        declared = int(getattr(args, "enc_dim", enc_dim))
+        if declared != enc_dim:
+            raise ValueError(
+                f"args.enc_dim={declared} 与 {args.enc_type} 的 {enc_dim} 不一致，"
+                "请检查检查点 args.json")
+
         ckpt = os.path.join(self.model_root, "torch_cache", "checkpoints",
-                            "dinov2_vitl14_pretrain.pth")
+                            weight_name)
         if not os.path.isfile(ckpt):
             raise FileNotFoundError(
                 f"DINOv2 权重不存在: {ckpt}；"
                 "请运行 python scripts/download_model.py")
 
-        encoder = build_dinov2_vitl14()
+        encoder = builder()
         state = torch.load(ckpt, map_location="cpu")
         encoder.load_state_dict(state, strict=False)
         encoder = encoder.to(dev).eval()
@@ -526,6 +581,11 @@ class VOSR2Engine:
         # 前置检查（按输出长边）+ 自动分块决策（防止大图全图 VAE 编码 OOM）
         output_long = max(output_w, output_h)
         self._preflight_output(output_long, params.upscale)
+        if params.steps > 1 and output_long < MULTISTEP_MIN_SIDE:
+            raise ValueError(
+                f"多步采样（steps={params.steps}）在输出小于 {MULTISTEP_MIN_SIDE}px 时"
+                f"不稳定（本图输出 {output_w}×{output_h}）：请提高放大倍率、"
+                f"换更大的输入图，或把采样步数改为 1（一步蒸馏）")
         free_gb = (torch.cuda.mem_get_info()[0] / 1024**3
                    if torch.cuda.is_available() else 0.0)
         dit_tile, vae_tile = self._auto_tile_sizes(

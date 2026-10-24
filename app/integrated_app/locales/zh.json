@@ -155,7 +155,10 @@
     "queue_count": "张",
     "queue_progress": "第",
     "batch_failed": "有任务失败",
-    "some_skipped": "已跳过非图片文件"
+    "some_skipped": "已跳过非图片文件",
+    "checkpoint": "模型检查点",
+    "checkpoint_hint_ms": "多步模型：建议 25 步，忠实度更高",
+    "checkpoint_hint_one": "一步蒸馏：1 步出图，速度最快"
   },
   "history": {
     "title": "历史记录",

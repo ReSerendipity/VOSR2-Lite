@@ -155,7 +155,10 @@
     "queue_count": "images",
     "queue_progress": "No.",
     "batch_failed": "Some tasks failed",
-    "some_skipped": "Non-image files skipped"
+    "some_skipped": "Non-image files skipped",
+    "checkpoint": "Checkpoint",
+    "checkpoint_hint_ms": "Multi-step: use 25 steps for higher fidelity",
+    "checkpoint_hint_one": "One-step distilled: fastest, 1 step"
   },
   "history": {
     "title": "History",

@@ -60,6 +60,8 @@
             btnPresetSave: $('btnPresetSave'),
             btnPresetDelete: $('btnPresetDelete'),
             btnDice: $('btnDice'),
+            checkpoint: $('paramCheckpoint'),
+            checkpointHint: $('checkpointHint'),
             recentSection: $('recentSection'),
             recentGrid: $('recentGrid'),
         };
@@ -82,6 +84,7 @@
         // ── 参数读写 ──────────────────────────────────────────────────────
 
         const paramFields = {
+            checkpoint: $('paramCheckpoint'),
             upscale: $('paramUpscale'),
             steps: $('paramSteps'),
             align: $('paramAlign'),
@@ -92,6 +95,7 @@
 
         function readParams() {
             return {
+                checkpoint: paramFields.checkpoint.value || '',
                 upscale: Number(paramFields.upscale.value),
                 steps: Number(paramFields.steps.value),
                 align: paramFields.align.value,
@@ -104,6 +108,11 @@
 
         function writeParams(p) {
             if (!p) return;
+            if (p.checkpoint) {
+                const has = [...paramFields.checkpoint.options]
+                    .some(o => o.value === p.checkpoint);
+                if (has) paramFields.checkpoint.value = p.checkpoint;
+            }
             if (p.upscale != null) paramFields.upscale.value = String(p.upscale);
             if (p.steps != null) paramFields.steps.value = String(p.steps);
             if (p.align) paramFields.align.value = p.align;
@@ -116,12 +125,74 @@
         try {
             writeParams(JSON.parse(localStorage.getItem(LAST_PARAMS_KEY) || 'null'));
         } catch (_) { /* 忽略损坏的本地数据 */ }
-        Object.values(paramFields).forEach(f => f.addEventListener('change', persistParams));
+        Object.values(paramFields).forEach(f => f.addEventListener('change', () => {
+            persistParams();
+            updateEstimate();
+        }));
         function persistParams() {
             try {
                 localStorage.setItem(LAST_PARAMS_KEY, JSON.stringify(readParams()));
             } catch (_) { /* 隐私模式可能禁用 localStorage */ }
         }
+
+        // ── 模型检查点 ────────────────────────────────────────────────────
+
+        function checkpointHint(name) {
+            const isMs = /_ms$/.test(name);
+            el.checkpointHint.textContent = isMs
+                ? t('restore.checkpoint_hint_ms', '多步模型：建议 25 步，忠实度更高')
+                : t('restore.checkpoint_hint_one', '一步蒸馏：1 步出图，速度最快');
+            return isMs;
+        }
+
+        /** 切换检查点时按模型类型给默认步数（多步 25 / 一步 1）。 */
+        function applyCheckpointDefaults(name, autoSteps) {
+            const isMs = checkpointHint(name);
+            if (autoSteps) paramFields.steps.value = isMs ? '25' : '1';
+        }
+
+        async function initCheckpoints() {
+            let preferred = '';
+            try {
+                const health = await VOSR2.api.get('/api/system/health');
+                const ready = (health.checkpoints || []).filter(c => c.present);
+                preferred = health.default_checkpoint || '';
+                el.checkpoint.innerHTML = '';
+                if (!ready.length) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = t('system.not_loaded', '未加载');
+                    el.checkpoint.appendChild(opt);
+                    el.checkpoint.disabled = true;
+                    return;
+                }
+                ready.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name;
+                    opt.textContent = c.display_name || c.name;
+                    opt.title = `${c.name} · ${c.type}`;
+                    el.checkpoint.appendChild(opt);
+                });
+                if (!ready.some(c => c.name === preferred)) preferred = ready[0].name;
+            } catch (_) {
+                return;
+            }
+            // 本地上次选择优先于服务端默认
+            let saved = '';
+            try {
+                saved = (JSON.parse(localStorage.getItem(LAST_PARAMS_KEY) || 'null') || {}).checkpoint || '';
+            } catch (_) { /* 忽略 */ }
+            const hasSaved = saved && [...el.checkpoint.options].some(o => o.value === saved);
+            el.checkpoint.value = hasSaved ? saved : preferred;
+            applyCheckpointDefaults(el.checkpoint.value, !hasSaved);
+            persistParams();
+        }
+
+        el.checkpoint.addEventListener('change', () => {
+            applyCheckpointDefaults(el.checkpoint.value, true);
+            persistParams();
+            updateEstimate();
+        });
 
         // ── 预设 ──────────────────────────────────────────────────────────
 
@@ -377,9 +448,11 @@
             const oh = first.natural.h * p.upscale;
             const overLimit = Math.max(ow, oh) > MAX_OUTPUT_SIDE;
             const mp = (ow * oh) / 1e6;
-            // 实测拟合（RTX 5070 Ti）：耗时 ≈ 1.5s + 0.17·MP²（注意力随 token 数平方增长）
-            //   11.1 MP（3096²）≈ 22s，37.7 MP（6144²）≈ 243s
-            const secs = Math.round(1.5 + 0.17 * mp * mp);
+            const steps = Math.max(1, Number(paramFields.steps.value) || 1);
+            // 实测拟合（RTX 5070 Ti）：t ≈ 1.5s + steps·(0.3s + 0.17·MP²)
+            //   单步 11.1MP（3096²）≈ 23s、37.7MP（6144²）≈ 243s；
+            //   25 步 0.26MP（512²）≈ 9.3s（实测 8.8s）
+            const secs = Math.round(1.5 + steps * (0.3 + 0.17 * mp * mp));
             const total = state.files.length;
 
             if (total === 1) {
@@ -555,6 +628,7 @@
             const p = readParams();
             const form = new FormData();
             form.append('file', item.file, item.file.name || 'paste.png');
+            if (p.checkpoint) form.append('checkpoint', p.checkpoint);
             form.append('upscale', p.upscale);
             form.append('steps', p.steps);
             form.append('align_method', p.align);
@@ -782,8 +856,10 @@
 
         // ── 初始化 ────────────────────────────────────────────────────────
 
-        renderPresets();
-        loadRecent();
+        initCheckpoints().finally(() => {
+            renderPresets();
+            loadRecent();
+        });
 
         const params = new URLSearchParams(window.location.search);
         const taskParam = params.get('task');

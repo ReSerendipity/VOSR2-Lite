@@ -1,6 +1,5 @@
-# Minimal local re-implementation of Meta's DINOv2 ViT-L/14 (facebookresearch/dinov2,
-# Apache-2.0), sized to load the official `dinov2_vitl14` checkpoint directly from a
-# local safetensors/pth file.
+# Minimal local re-implementation of Meta's DINOv2 (facebookresearch/dinov2,
+# Apache-2.0)：ViT-L/14 与 ViT-B/14 两种规模，直接加载官方 checkpoint。
 #
 # 来源：ComfyUI-VOSR2 节点的 models/dinov2.py（ylchen333, Apache-2.0），
 # 该文件本身是 Meta DINOv2 的本地复刻。VOSR2-Lite 适配：移除 comfy.ops
@@ -21,6 +20,16 @@ DINOV2_VITL14_CONFIG = dict(
     embed_dim=1024,
     depth=24,
     num_heads=16,
+    mlp_ratio=4.0,
+)
+
+# ViT-B/14：0.5B 系检查点（VOSR_0.5B_os / _ms）使用，权重 dinov2_vitb14_pretrain.pth
+DINOV2_VITB14_CONFIG = dict(
+    img_size=518,
+    patch_size=14,
+    embed_dim=768,
+    depth=12,
+    num_heads=12,
     mlp_ratio=4.0,
 )
 
@@ -165,3 +174,14 @@ class DinoVisionTransformer(nn.Module):
 
 def build_dinov2_vitl14() -> DinoVisionTransformer:
     return DinoVisionTransformer(**DINOV2_VITL14_CONFIG)
+
+
+def build_dinov2_vitb14() -> DinoVisionTransformer:
+    return DinoVisionTransformer(**DINOV2_VITB14_CONFIG)
+
+
+# enc_type（上游 args.json）-> (构建函数, 权重文件名, 中间层特征维度)
+DINOV2_VARIANTS = {
+    "dinov2l": (build_dinov2_vitl14, "dinov2_vitl14_pretrain.pth", 1024),
+    "dinov2b": (build_dinov2_vitb14, "dinov2_vitb14_pretrain.pth", 768),
+}

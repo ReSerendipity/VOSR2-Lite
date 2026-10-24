@@ -162,3 +162,78 @@ def test_i18n():
     assert i18n.t("no.such.key") == "no.such.key"
     assert i18n.set_locale("en") == "en"
     assert i18n.set_locale("fr") == "zh"  # 非法值回退默认
+
+
+def test_dinov2_variant_registry():
+    """1.4B 用 dinov2l、0.5B 用 dinov2b；两者架构维度必须与 args.enc_dim 对齐。"""
+    from vosr.models.dinov2_vitl14 import (
+        DINOV2_VARIANTS,
+        build_dinov2_vitb14,
+        build_dinov2_vitl14,
+    )
+
+    assert set(DINOV2_VARIANTS) == {"dinov2l", "dinov2b"}
+    builder_l, weight_l, dim_l = DINOV2_VARIANTS["dinov2l"]
+    builder_b, weight_b, dim_b = DINOV2_VARIANTS["dinov2b"]
+    assert (dim_l, dim_b) == (1024, 768)
+    assert weight_l == "dinov2_vitl14_pretrain.pth"
+    assert weight_b == "dinov2_vitb14_pretrain.pth"
+
+    vitl = build_dinov2_vitl14()
+    assert vitl.embed_dim == 1024 and len(vitl.blocks) == 24
+    vitb = build_dinov2_vitb14()
+    assert vitb.embed_dim == 768 and len(vitb.blocks) == 12
+    assert builder_l is build_dinov2_vitl14 and builder_b is build_dinov2_vitb14
+
+
+def test_sd2_decoder_fallback(tmp_path):
+    """sd2 缺轻量解码器权重时回退标准 VAE 解码；qwen 系返回 None。"""
+    from types import SimpleNamespace
+
+    import torch
+
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    dev = torch.device("cpu")
+    engine = VOSR2Engine("VOSR_0.5B_os", str(tmp_path))
+    assert engine._build_sd2_decoder(SimpleNamespace(ae_type="qwen"), dev) is None
+
+    calls = {}
+
+    class _FakeVAE:
+        def decode(self, latent, return_dict=False):
+            calls["latent"] = latent
+            return ("decoded",)
+
+    engine.vae = _FakeVAE()
+    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"), dev)
+    assert callable(decoder)
+    assert decoder("z") == "decoded"
+    assert calls["latent"] == "z"
+
+
+def test_sd2_light_decoder_loads(tmp_path):
+    """有 sd21_lwdecoder.pth 时应加载官方轻量解码器（不是回退 lambda）。"""
+    from types import SimpleNamespace
+
+    import torch
+
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+    from vosr.models.light_decoder import LightDecoder
+
+    ckpt = tmp_path / "sd21_lwdecoder.pth"
+    torch.save(LightDecoder().state_dict(), ckpt)
+
+    engine = VOSR2Engine("VOSR_0.5B_os", str(tmp_path))
+    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"),
+                                        torch.device("cpu"))
+    assert isinstance(decoder, LightDecoder)
+    out = decoder(torch.zeros(1, 4, 8, 8))
+    assert tuple(out.shape) == (1, 3, 64, 64)
+
+
+def test_multistep_min_side_guard():
+    """多步模型的最小输出边长门槛必须存在且覆盖已知失效区间（≤256px）。"""
+    from app.integrated_app.engines.vosr2_engine import MULTISTEP_MIN_SIDE
+
+    assert 256 < MULTISTEP_MIN_SIDE <= 512

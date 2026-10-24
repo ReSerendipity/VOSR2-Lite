@@ -203,6 +203,13 @@
                     </div>
 
                     <div class="sv-form-grid">
+                        <div class="sv-form-item sv-form-item-wide">
+                            <label for="paramCheckpoint">{{ t('restore.checkpoint') }}</label>
+                            <select class="sv-form-control" id="paramCheckpoint">
+                                <option value="">{{ t('common.loading') }}</option>
+                            </select>
+                            <p class="sv-form-hint sv-form-hint-tight" id="checkpointHint"></p>
+                        </div>
                         <div class="sv-form-item">
                             <label for="paramUpscale">{{ t('restore.upscale') }}</label>
                             <select class="sv-form-control" id="paramUpscale">
