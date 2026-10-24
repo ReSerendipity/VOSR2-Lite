@@ -41,6 +41,16 @@
 5. **启动**：双击 `start.bat`，浏览器自动打开 <http://127.0.0.1:7871>
 6. **开始修复**：进入「修复工作台」上传图片 → 调整参数 → 开始修复；「系统状态」页查看 GPU 与权重完整性
 
+## 发布与安装包
+
+- **官方发布**：通过 GitHub Release 分发（`distribution=github-release`），最新版见
+  <https://github.com/ReSerendipity/VOSR2-Lite/releases/latest>；发布 / 回滚治理规范
+  （版本位同步、资产清单与 SHA-256 校验、draft 人工审核、回滚方式）见
+  [docs/release-governance.md](docs/release-governance.md)。
+- **发布包只含源代码与清单**（`VOSR2-Lite-v<X.Y.Z>.zip` + `SHA256SUMS.txt` + CycloneDX SBOM）；
+  **模型权重不随包分发**，请用 `python scripts/download_model.py` 获取（见上文「快速上手」第 4 步）。
+- 下载后先校验完整性：`sha256sum -c SHA256SUMS.txt`，再按「快速上手」安装依赖并启动。
+
 ## 模型选型
 
 | 检查点 | 类型 | 架构 | 最低显存 | 体积 | 说明 |

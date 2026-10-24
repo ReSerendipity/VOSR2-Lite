@@ -1,0 +1,180 @@
+# .github/workflows/release.yml
+# VOSR2-Lite GitHub Release 发布链（公共条款见 ReSerendipity/.github REPOSITORY_GUIDELINES.md §10）。
+#
+# 流程：tag v* 推送（或 workflow_dispatch 手动触发）→ 版本一致性门禁
+#（tag == pyproject.toml project.version == version.json version，漂一处即失败）
+# → git archive 打包 tracked 源码 → SHA256SUMS.txt → CycloneDX SBOM
+# → SLSA build provenance 证明（绑定 zip digest）→ 创建 draft GitHub Release 并挂资产。
+#
+# 只创建 draft，绝不自动 publish：人工审核通过后在 Release 页面手动发布。
+# 若同 tag 的 draft 已存在：只补传缺失资产，不覆盖既有 notes。
+#
+# 所有第三方 Actions 均固定到完整 commit SHA（不使用 @v4 / @v5 浮动标签）。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # fetch-depth: 0 -> 需要完整历史与 tag（git archive <tag>、上一个 tag 的回滚说明）。
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: 版本一致性校验（tag == pyproject.toml == version.json）
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PY_VER="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          VJ_VER="$(python -c "import json; print(json.load(open('version.json'))['version'])")"
+          echo "pyproject.toml project.version = ${PY_VER}"
+          echo "version.json        version     = ${VJ_VER}"
+          if [ "${PY_VER}" != "${VJ_VER}" ]; then
+            echo "::error::version mismatch: pyproject.toml=${PY_VER} vs version.json=${VJ_VER}"
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" = "push" ]; then
+            REF="${{ github.ref_name }}"
+            if [ "${REF}" != "v${PY_VER}" ]; then
+              echo "::error::tag ${REF} must equal v${PY_VER} (pyproject.toml / version.json) - failing"
+              exit 1
+            fi
+          fi
+          echo "version=${PY_VER}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${PY_VER}" >> "${GITHUB_OUTPUT}"
+          echo "version=${PY_VER}" >> "${GITHUB_ENV}"
+          echo "tag=v${PY_VER}" >> "${GITHUB_ENV}"
+          echo "version consistency OK: pyproject=${PY_VER} version.json=${VJ_VER} tag=v${PY_VER}"
+
+      # git archive 只打包 tracked 文件；模型权重、data/outputs/logs 本就不入库
+      # （.gitignore），不会进入发布包。
+      - name: 打包 tracked 源码（git archive）
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="VOSR2-Lite-v${version}.zip"
+          git archive --format=zip --prefix="VOSR2-Lite-v${version}/" -o "${ZIP}" "${tag}"
+          echo "== zip contents (tail) =="
+          unzip -l "${ZIP}" | tail -n 5
+          du -h "${ZIP}"
+
+      - name: 生成 SHA256SUMS.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum "VOSR2-Lite-v${version}.zip" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # SBOM 基于 requirements.txt（cyclonedx-py，版本钉死可复现）。
+      - name: 生成 CycloneDX SBOM（requirements.txt）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check "cyclonedx-bom==7.5.0"
+          cyclonedx-py requirements requirements.txt -o "VOSR2-Lite-v${version}-sbom.cdx.json"
+          python -c "import json; d=json.load(open('VOSR2-Lite-v${version}-sbom.cdx.json')); assert d['bomFormat']=='CycloneDX'; print('SBOM ok: specVersion', d['specVersion'], '| components', len(d.get('components', [])))"
+
+      # SLSA provenance：绑定 zip 的 digest（与 TTS/SeedVR2 口径一致）。
+      - name: 生成 build provenance attestation（SLSA）
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: VOSR2-Lite-v${{ steps.version.outputs.version }}.zip
+
+      - name: 创建 draft Release（存在则补传缺失资产，不覆盖既有 notes）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="VOSR2-Lite-v${version}.zip"
+          SBOM="VOSR2-Lite-v${version}-sbom.cdx.json"
+          ASSETS=("${ZIP}" "SHA256SUMS.txt" "${SBOM}")
+          NOTES="${RUNNER_TEMP}/release-notes.md"
+          PREV_TAG="$(git tag --sort=-version:refname | grep -E '^v' | sed -n '2p' || true)"
+
+          cat > "${NOTES}" <<EOF
+          # VOSR2-Lite v${version}
+
+          VOSR2-Lite 独立图像超分辨率工具箱发布包（tracked 源码 + 完整性清单）。
+
+          > 本 Release 为 **draft**：由 \`release.yml\` 自动创建，经人工审核后手动发布。
+          > 资产不可变：已发布资产不会被覆盖，需要修复请发新版本。
+
+          ## 资产清单与校验
+
+          | 资产 | 说明 |
+          |---|---|
+          | \`VOSR2-Lite-v${version}.zip\` | tracked 源码包（\`git archive\`；模型权重不入包） |
+          | \`SHA256SUMS.txt\` | zip 的 SHA-256 校验和 |
+          | \`VOSR2-Lite-v${version}-sbom.cdx.json\` | CycloneDX SBOM（基于 \`requirements.txt\`） |
+          |（Release 页 SLSA provenance） | \`actions/attest-build-provenance\` 绑定 zip digest |
+
+          校验命令：
+
+          \`\`\`bash
+          sha256sum -c SHA256SUMS.txt
+          \`\`\`
+
+          ## 安装步骤
+
+          1. 下载 \`VOSR2-Lite-v${version}.zip\`，先执行上方 SHA-256 校验。
+          2. 解压，按 README「快速上手」安装依赖：\`pip install -r requirements.txt\`
+             （torch 需 CUDA 版 cu128，RTX 50 系必须，见 README）。
+          3. 下载模型权重（不入包）：\`python scripts/download_model.py\`（约 6.6 GB，仅权重）。
+          4. 启动：双击 \`start.bat\`，浏览器打开 http://127.0.0.1:7871。
+
+          ## 回滚
+
+          - 若该版本异常：**重新下载上一个 tag 的 Release 资产**（\`v${PREV_TAG:-<更早的 v* tag>}\`），
+            校验 SHA-256 后替换安装目录；若本 draft 尚未发布，直接放弃本 draft 即可。
+          - 发布资产不可变：不要覆盖既有资产，修复请走新版本。
+          - 回滚后验证：\`python scripts/smoke_infer.py -i <test.png> -o outputs/\` 跑通一次真实推理。
+
+          ## 模型权重
+
+          模型权重**不随发布包分发**（不入库、不打进 zip）：使用 \`scripts/download_model.py\`
+          从官方来源（HuggingFace \`CSWRY/VOSR\` / ModelScope \`LULALULALU/VOSR_CKPT\`）获取，
+          使用条款见 \`docs/USER_AGREEMENT.md\` 与 \`NOTICE\`。
+          EOF
+
+          if gh release view "${tag}" --json isDraft --jq '.isDraft' 2>/dev/null | grep -q true; then
+            echo "draft release ${tag} already exists -> uploading missing assets only, keeping existing notes"
+            EXISTING="$(gh release view "${tag}" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+            for a in "${ASSETS[@]}"; do
+              if printf '%s\n' "${EXISTING}" | grep -Fxq "${a}"; then
+                echo "skip (already present): ${a}"
+              else
+                gh release upload "${tag}" "${a}"
+              fi
+            done
+          else
+            gh release create "${tag}" "${ASSETS[@]}" --draft --verify-tag \
+              --title "VOSR2-Lite ${tag}" --notes-file "${NOTES}"
+          fi
+
+          echo "== release assets =="
+          gh release view "${tag}" --json assets --jq '.assets[].name'
