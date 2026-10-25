@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <style>
+      .layer { fill: #fbf7f1; stroke: #e6d9c8; stroke-width: 1.2; rx: 12; }
+      .layer-label { font-size: 13px; fill: #8a7a66; font-weight: 600; letter-spacing: .5px; }
+      .box { fill: #ffffff; stroke: #d9c7ae; stroke-width: 1.2; rx: 8; }
+      .box-accent { fill: #fff4e6; stroke: #d97a2b; stroke-width: 1.4; }
+      .box-dark { fill: #2b2622; stroke: #2b2622; rx: 8; }
+      .title { font-size: 15px; font-weight: 700; fill: #2b2622; }
+      .title-light { font-size: 14px; font-weight: 700; fill: #fff; }
+      .sub { font-size: 11.5px; fill: #6b5d4d; }
+      .sub-light { font-size: 11.5px; fill: #e8dcc8; }
+      .arrow { stroke: #b08a5a; stroke-width: 1.6; fill: none; marker-end: url(#ah); }
+      .arrow-dash { stroke: #b08a5a; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; marker-end: url(#ah); }
+    </style>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b08a5a"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="600" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#2b2622">VOSR2-Lite 架构总览</text>
+  <text x="600" y="56" text-anchor="middle" font-size="12.5" fill="#8a7a66">FastAPI · Jinja2 + HTMX 前端 · 懒加载 VOSR2 引擎 · SQLite 历史（本地 127.0.0.1）</text>
+
+  <!-- Layer 1: Browser -->
+  <rect class="layer" x="40" y="80" width="1120" height="100" rx="12"/>
+  <text class="layer-label" x="60" y="102">浏览器 / Browser</text>
+  <rect class="box" x="80" y="115" width="200" height="50" rx="8"/>
+  <text class="title" x="180" y="137" text-anchor="middle">Jinja2 模板</text>
+  <text class="sub" x="180" y="155" text-anchor="middle">index / restore / history / …</text>
+
+  <rect class="box" x="310" y="115" width="200" height="50" rx="8"/>
+  <text class="title" x="410" y="137" text-anchor="middle">HTMX + Bootstrap 5</text>
+  <text class="sub" x="410" y="155" text-anchor="middle">多语言 / 主题 / 快捷键</text>
+
+  <rect class="box-accent" x="540" y="115" width="230" height="50" rx="8"/>
+  <text class="title" x="655" y="137" text-anchor="middle">viewer.js 对比查看器</text>
+  <text class="sub" x="655" y="155" text-anchor="middle">分割线 / 放大镜 / 缩放 / 1:1</text>
+
+  <rect class="box" x="800" y="115" width="180" height="50" rx="8"/>
+  <text class="title" x="890" y="137" text-anchor="middle">restore.js 工作台</text>
+  <text class="sub" x="890" y="155" text-anchor="middle">队列 / 预设 / SSE 进度</text>
+
+  <rect class="box" x="1000" y="115" width="140" height="50" rx="8"/>
+  <text class="title" x="1070" y="137" text-anchor="middle">SSE 客户端</text>
+  <text class="sub" x="1070" y="155" text-anchor="middle">EventSource</text>
+
+  <!-- Layer 2: FastAPI middleware + routes -->
+  <rect class="layer" x="40" y="200" width="1120" height="140" rx="12"/>
+  <text class="layer-label" x="60" y="222">FastAPI 应用层 / app/integrated_app</text>
+
+  <rect class="box" x="80" y="235" width="240" height="90" rx="8"/>
+  <text class="title" x="200" y="257" text-anchor="middle">中间件栈（外→内）</text>
+  <text class="sub" x="200" y="276" text-anchor="middle">RequestID · SecurityHeaders(CSP)</text>
+  <text class="sub" x="200" y="292" text-anchor="middle">RateLimit(30/min) · ErrorHandler</text>
+  <text class="sub" x="200" y="308" text-anchor="middle">CORS（仅 127.0.0.1 起源）</text>
+
+  <rect class="box" x="350" y="235" width="250" height="90" rx="8"/>
+  <text class="title" x="475" y="257" text-anchor="middle">页面路由</text>
+  <text class="sub" x="475" y="276" text-anchor="middle">/  /restore  /history</text>
+  <text class="sub" x="475" y="292" text-anchor="middle">/system-status  /settings</text>
+  <text class="sub" x="475" y="308" text-anchor="middle">Jinja2 渲染 + i18n 注入</text>
+
+  <rect class="box" x="630" y="235" width="240" height="90" rx="8"/>
+  <text class="title" x="750" y="257" text-anchor="middle">/api/restore/*</text>
+  <text class="sub" x="750" y="276" text-anchor="middle">upload · task · cancel</text>
+  <text class="sub" x="750" y="292" text-anchor="middle">media（input / preview / download）</text>
+  <text class="sub" x="750" y="308" text-anchor="middle">SSE /{id}/progress</text>
+
+  <rect class="box" x="900" y="235" width="240" height="90" rx="8"/>
+  <text class="title" x="1020" y="257" text-anchor="middle">/api/system/*</text>
+  <text class="sub" x="1020" y="276" text-anchor="middle">health（GPU / 权重 / 队列）</text>
+  <text class="sub" x="1020" y="292" text-anchor="middle">history 分页 · thumb</text>
+  <text class="sub" x="1020" y="308" text-anchor="middle">locale 切换</text>
+
+  <!-- Layer 3: services -->
+  <rect class="layer" x="40" y="360" width="1120" height="130" rx="12"/>
+  <text class="layer-label" x="60" y="382">服务 / Services</text>
+
+  <rect class="box-accent" x="80" y="395" width="250" height="80" rx="8"/>
+  <text class="title" x="205" y="418" text-anchor="middle">ModelManager</text>
+  <text class="sub" x="205" y="437" text-anchor="middle">懒加载（auto_load=false）</text>
+  <text class="sub" x="205" y="453" text-anchor="middle">空闲 15 min 自动卸载 · 多检查点扫描</text>
+
+  <rect class="box" x="360" y="395" width="220" height="80" rx="8"/>
+  <text class="title" x="470" y="418" text-anchor="middle">TaskQueue</text>
+  <text class="sub" x="470" y="437" text-anchor="middle">单 worker 串行</text>
+  <text class="sub" x="470" y="453" text-anchor="middle">排队 / 取消 / 超时保护</text>
+
+  <rect class="box" x="610" y="395" width="220" height="80" rx="8"/>
+  <text class="title" x="720" y="418" text-anchor="middle">HistoryDB (SQLite)</text>
+  <text class="sub" x="720" y="437" text-anchor="middle">WAL 模式 · history + tasks 表</text>
+  <text class="sub" x="720" y="453" text-anchor="middle">aiosqlite · 缩略图</text>
+
+  <rect class="box" x="860" y="395" width="280" height="80" rx="8"/>
+  <text class="title" x="1000" y="418" text-anchor="middle">EventBus · I18n · PathGuard</text>
+  <text class="sub" x="1000" y="437" text-anchor="middle">简体中文 / English 语言包</text>
+  <text class="sub" x="1000" y="453" text-anchor="middle">上传魔数校验 · 路径白名单</text>
+
+  <!-- Layer 4: Engine + vendor -->
+  <rect class="layer" x="40" y="510" width="700" height="130" rx="12"/>
+  <text class="layer-label" x="60" y="532">推理引擎（按需加载，不进启动路径）</text>
+
+  <rect class="box-dark" x="80" y="545" width="620" height="80" rx="8"/>
+  <text class="title-light" x="390" y="568" text-anchor="middle">VOSR2Engine  →  vosr/ vendor（上游 cswry/VOSR, Apache-2.0）</text>
+  <text class="sub-light" x="390" y="588" text-anchor="middle">LightningDiT 1.4B / 0.5B · Qwen-Image 2D VAE · SD2.1 VAE（0.5B）</text>
+  <text class="sub-light" x="390" y="606" text-anchor="middle">DINOv2-L/B 视觉条件 · DiT/VAE 两级分块 · wavelet/adain 颜色对齐</text>
+
+  <!-- Layer 5: Storage -->
+  <rect class="layer" x="760" y="510" width="400" height="130" rx="12"/>
+  <text class="layer-label" x="780" y="532">本地存储（127.0.0.1，不出机）</text>
+  <rect class="box" x="785" y="545" width="175" height="34" rx="6"/>
+  <text class="sub" x="872" y="567" text-anchor="middle">data/history.db</text>
+  <rect class="box" x="975" y="545" width="175" height="34" rx="6"/>
+  <text class="sub" x="1062" y="567" text-anchor="middle">data/uploads/</text>
+  <rect class="box" x="785" y="587" width="175" height="34" rx="6"/>
+  <text class="sub" x="872" y="609" text-anchor="middle">outputs/</text>
+  <rect class="box" x="975" y="587" width="175" height="34" rx="6"/>
+  <text class="sub" x="1062" y="609" text-anchor="middle">model/ 权重（脚本下载）</text>
+
+  <!-- Arrows -->
+  <path class="arrow" d="M 600 180 L 600 200"/>
+  <path class="arrow" d="M 600 340 L 600 360"/>
+  <path class="arrow" d="M 300 490 L 300 510"/>
+  <path class="arrow-dash" d="M 860 435 L 780 575"/>
+  <path class="arrow" d="M 730 575 L 780 575"/>
+
+  <!-- Footer note -->
+  <text x="600" y="680" text-anchor="middle" font-size="12" fill="#8a7a66">
+    默认仅绑定 127.0.0.1 · 权重不随仓库分发（scripts/download_model.py）· 单 GPU 串行
+  </text>
+  <text x="600" y="700" text-anchor="middle" font-size="11.5" fill="#a89a86">
+    启动期不 import torch：模型在首次推理时由 ModelManager 懒加载
+  </text>
+</svg>
