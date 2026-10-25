@@ -40,15 +40,11 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 
 ### 展示
 
-> 下列截图在未下载权重的开发模式下通过本地 Web UI 截取；对比查看器中的左右两图为演示素材，仅用于展示 UI，不代表真实推理质量。
+> 下列截图在未下载权重的开发模式下通过本地 Web UI 截取；界面状态为开发模式下的真实渲染。
 
 **主界面**：项目概览、GPU / 模型状态、最近任务入口。
 
 ![主界面](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-1-home.png)
-
-**前后对比查看器**：拖动分割线逐处比对，支持放大镜、缩放、1:1。
-
-![对比查看器](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-2-compare.png)
 
 **推理参数面板**：检查点选择、放大倍率、采样步数、颜色对齐、随机种子、DiT / VAE 分块尺寸，参数预设本地保存。
 
@@ -185,15 +181,11 @@ VOSR2-Lite is a standalone image super-resolution toolkit built on [VOSR2](https
 
 ### Screenshots
 
-> The shots below were taken from the local web UI in development mode without model weights. The before/after pair in the viewer is placeholder material used to demonstrate the UI — it is not a real inference result.
+> The shots below were taken from the local web UI in development mode without model weights; UI state reflects the real development-mode rendering.
 
 **Home**: overview, GPU / model status, recent-tasks entry.
 
 ![Home](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-1-home.png)
-
-**Before/After viewer**: drag the divider; loupe, zoom, and 1:1 supported.
-
-![Compare viewer](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-2-compare.png)
 
 **Inference parameters**: checkpoint picker, upscale factor, steps, color alignment, seed, DiT / VAE tile size, and local presets.
 
