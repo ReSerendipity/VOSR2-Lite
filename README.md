@@ -44,7 +44,7 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 
 **主界面**：项目概览、GPU / 模型状态、最近任务入口。
 
-![主界面](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-1-home.png)
+![主界面](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-1-home-20261026.png)
 
 **前后对比查看器**：拖动分割线逐处比对，支持放大镜、缩放、1:1。
 
@@ -52,7 +52,7 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 
 **推理参数面板**：检查点选择、放大倍率、采样步数、颜色对齐、随机种子、DiT / VAE 分块尺寸，参数预设本地保存。
 
-![参数面板](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-3-params.png)
+![参数面板](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-3-params-20261026.png)
 
 **批量队列**：多选或拖入多张图片后串行排队，逐张显示缩略图与状态，可清空或重试。
 
@@ -60,7 +60,7 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 
 **历史记录**：SQLite 持久化，分页查看过往任务，一键重新对比或下载。
 
-![历史记录](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-5-history.png)
+![历史记录](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-5-history-20261026.png)
 
 **架构总览**：从浏览器模板到 FastAPI 路由 / 中间件 / 服务，再到按需懒加载的 VOSR 引擎与本地存储。
 
@@ -189,7 +189,7 @@ VOSR2-Lite is a standalone image super-resolution toolkit built on [VOSR2](https
 
 **Home**: overview, GPU / model status, recent-tasks entry.
 
-![Home](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-1-home.png)
+![Home](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-1-home-20261026.png)
 
 **Before/After viewer**: drag the divider; loupe, zoom, and 1:1 supported.
 
@@ -197,7 +197,7 @@ VOSR2-Lite is a standalone image super-resolution toolkit built on [VOSR2](https
 
 **Inference parameters**: checkpoint picker, upscale factor, steps, color alignment, seed, DiT / VAE tile size, and local presets.
 
-![Parameters](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-3-params.png)
+![Parameters](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-3-params-20261026.png)
 
 **Batch queue**: multi-select or drag in images; they queue serially with thumbnails and status.
 
@@ -205,7 +205,7 @@ VOSR2-Lite is a standalone image super-resolution toolkit built on [VOSR2](https
 
 **History**: SQLite-persisted task list with thumbnails; re-compare or download in one click.
 
-![History](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-5-history.png)
+![History](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-5-history-20261026.png)
 
 **Architecture**: from browser templates through FastAPI routes / middleware / services down to the lazily-loaded VOSR engine and local storage.
 
