@@ -20,8 +20,7 @@ from typing import Any
 import yaml
 from loguru import logger
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 DEFAULTS: dict[str, Any] = {
     "server": {
@@ -52,18 +51,19 @@ DEFAULTS: dict[str, Any] = {
     },
     "history": {"db_path": "data/history.db", "max_records": 10000},
     "i18n": {"available_locales": ["zh", "en"], "default_locale": "zh"},
-    "logging": {"file": "logs/app.log", "level": "INFO",
-                "max_size_mb": 50, "backup_count": 3},
+    "logging": {"file": "logs/app.log", "level": "INFO", "max_size_mb": 50, "backup_count": 3},
     "runtime": {
         "security": {
             "rate_limit_per_minute": 30,
             "max_upload_image_mb": 50,
-            "allowed_base_dirs": ["outputs/", "data/uploads/",
-                                  "data/checkpoints/", "model/"],
+            "allowed_base_dirs": ["outputs/", "data/uploads/", "data/checkpoints/", "model/"],
             "headers": {"enabled": True, "csp": ""},
         },
-        "task": {"queue_maxsize": 100, "max_timeout_seconds": 86400,
-                 "progress_stall_timeout_minutes": 30},
+        "task": {
+            "queue_maxsize": 100,
+            "max_timeout_seconds": 86400,
+            "progress_stall_timeout_minutes": 30,
+        },
         "sse": {"heartbeat_interval_seconds": 30, "max_duration_seconds": 3600},
     },
 }

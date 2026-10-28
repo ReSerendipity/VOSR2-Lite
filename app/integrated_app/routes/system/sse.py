@@ -29,8 +29,7 @@ async def sse_events(request: Request):
                     break
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=5.0)
-                    yield format_sse(event.get("event", "unknown"),
-                                     event.get("data", {}))
+                    yield format_sse(event.get("event", "unknown"), event.get("data", {}))
                 except TimeoutError:
                     pass
                 now = time.time()

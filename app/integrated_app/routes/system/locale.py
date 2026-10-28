@@ -17,9 +17,9 @@ LOCALE_COOKIE = "vosr2_locale"
 
 
 @router.post("/locale")
-async def set_locale(request: Request,
-                     i18n: I18n = Depends(get_i18n),
-                     config: dict = Depends(get_config)):
+async def set_locale(
+    request: Request, i18n: I18n = Depends(get_i18n), config: dict = Depends(get_config)
+):
     body = {}
     try:
         body = await request.json()
@@ -29,11 +29,13 @@ async def set_locale(request: Request,
     available = config.get("i18n", {}).get("available_locales", ["zh", "en"])
     if requested not in available:
         from app.integrated_app.utils.response import respond_error
-        return respond_error(code="INVALID_LOCALE",
-                             message=f"不支持的语言: {requested}", status=400)
+
+        return respond_error(
+            code="INVALID_LOCALE", message=f"不支持的语言: {requested}", status=400
+        )
     i18n.set_locale(requested)
-    response = JSONResponse(content={"success": True,
-                                     "data": {"locale": requested}})
-    response.set_cookie(LOCALE_COOKIE, requested, max_age=365 * 86400,
-                        path="/", httponly=False, samesite="lax")
+    response = JSONResponse(content={"success": True, "data": {"locale": requested}})
+    response.set_cookie(
+        LOCALE_COOKIE, requested, max_age=365 * 86400, path="/", httponly=False, samesite="lax"
+    )
     return response

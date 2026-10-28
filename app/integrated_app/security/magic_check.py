@@ -16,8 +16,14 @@ _MAGIC_SIGNATURES: dict[str, list[bytes]] = {
 }
 
 _EXT_TO_KIND = {
-    ".png": "png", ".jpg": "jpg", ".jpeg": "jpg", ".gif": "gif",
-    ".bmp": "bmp", ".webp": "webp", ".tif": "tiff", ".tiff": "tiff",
+    ".png": "png",
+    ".jpg": "jpg",
+    ".jpeg": "jpg",
+    ".gif": "gif",
+    ".bmp": "bmp",
+    ".webp": "webp",
+    ".tif": "tiff",
+    ".tiff": "tiff",
 }
 
 ALLOWED_IMAGE_EXTENSIONS = set(_EXT_TO_KIND)

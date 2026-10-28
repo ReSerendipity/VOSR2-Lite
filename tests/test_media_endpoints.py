@@ -52,7 +52,8 @@ def completed_task(app, client):
                                  output_size, created_at)
             VALUES (?, ?, 'image', 'completed', 'VOSR2', '{}', '', 1.25, ?, ?)
             """,
-            (str(src), str(out), out.stat().st_size, now))
+            (str(src), str(out), out.stat().st_size, now),
+        )
         record_id = int(cur.lastrowid)
         con.execute(
             """
@@ -62,7 +63,8 @@ def completed_task(app, client):
             VALUES (?, ?, 'completed', 1.0, '修复完成', '', ?, ?, 1.25,
                     'done', 'image', '{}', ?)
             """,
-            (task_id, record_id, str(out), out.stat().st_size, now))
+            (task_id, record_id, str(out), out.stat().st_size, now),
+        )
         con.commit()
     finally:
         con.close()
@@ -90,8 +92,7 @@ def test_preview_endpoint_downscales(client, completed_task):
 
 def test_preview_rejects_unknown_kind(client, completed_task):
     task_id, _ = completed_task
-    assert client.get(
-        f"/api/restore/{task_id}/preview?kind=evil").status_code == 422
+    assert client.get(f"/api/restore/{task_id}/preview?kind=evil").status_code == 422
 
 
 def test_preview_rejects_bad_task_id(client):
@@ -124,8 +125,7 @@ def test_download_converts_to_webp(client, completed_task):
 
 def test_download_rejects_bad_format(client, completed_task):
     task_id, _ = completed_task
-    assert client.get(
-        f"/api/restore/{task_id}/download?format=exe").status_code == 422
+    assert client.get(f"/api/restore/{task_id}/download?format=exe").status_code == 422
 
 
 def test_history_record_carries_task_id(client, completed_task):

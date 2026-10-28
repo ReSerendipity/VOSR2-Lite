@@ -26,12 +26,14 @@ _SKIP_PREFIXES = ("/static/", "/favicon.ico")
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, rate_limit_per_minute: int = 30,
-                 get_rate_limit_per_minute: int | None = None):
+    def __init__(
+        self, app, rate_limit_per_minute: int = 30, get_rate_limit_per_minute: int | None = None
+    ):
         super().__init__(app)
         self._limit = max(1, rate_limit_per_minute)
         self._get_limit = get_rate_limit_per_minute or min(
-            self._limit * _GET_LIMIT_FACTOR, _GET_LIMIT_CAP)
+            self._limit * _GET_LIMIT_FACTOR, _GET_LIMIT_CAP
+        )
         self._hits: dict[tuple[str, str], deque[float]] = defaultdict(deque)
         self._window = 60.0
 
@@ -57,10 +59,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             retry_after = int(self._window - (now - hits[0])) + 1
             return JSONResponse(
                 status_code=429,
-                content={"success": False,
-                         "error": {"code": "RATE_LIMITED",
-                                   "message": "请求过于频繁，请稍后再试",
-                                   "detail": {}}},
+                content={
+                    "success": False,
+                    "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "请求过于频繁，请稍后再试",
+                        "detail": {},
+                    },
+                },
                 headers={"Retry-After": str(retry_after)},
             )
         hits.append(now)

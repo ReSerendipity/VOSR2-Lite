@@ -43,8 +43,7 @@ MODEL_ROOT = os.path.join(PROJECT_ROOT, "model")
 
 DEFAULT_REPO = "CSWRY/VOSR"
 DEFAULT_ENDPOINT = os.environ.get("HF_ENDPOINT", "https://hf-mirror.com")
-MODELSCOPE_BASE = ("https://modelscope.cn/models/LULALULALU/VOSR_CKPT"
-                   "/resolve/master")
+MODELSCOPE_BASE = "https://modelscope.cn/models/LULALULALU/VOSR_CKPT" "/resolve/master"
 
 # 每个 checkpoint 的文件清单（相对 model/ 的路径）。
 # 注：官方未逐文件公布 sha256，这里只登记文件名与来源；大小校验由
@@ -110,7 +109,6 @@ CHECKPOINTS: dict[str, dict[str, object]] = {
 }
 
 
-
 def _human(size: float) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if size < 1024:
@@ -149,8 +147,11 @@ def _download(url: str, target: str) -> None:
                 downloaded += len(chunk)
                 if time.time() - last_log > 2:
                     pct = f" {downloaded / total * 100:.0f}%" if total else ""
-                    print(f"\r  {os.path.basename(target)}: "
-                          f"{_human(downloaded)}{pct}", end="", flush=True)
+                    print(
+                        f"\r  {os.path.basename(target)}: " f"{_human(downloaded)}{pct}",
+                        end="",
+                        flush=True,
+                    )
                     last_log = time.time()
     if total:
         print(f"\r  {os.path.basename(target)}: {_human(total)} (100%)")
@@ -186,25 +187,35 @@ def _fetch(rel: str, endpoint: str, source: str = "auto") -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="VOSR2-Lite 模型权重下载")
-    parser.add_argument("--checkpoint", default="VOSR2",
-                        choices=sorted(CHECKPOINTS),
-                        help="要下载的检查点（默认 VOSR2）")
-    parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT,
-                        help="HF 镜像端点（默认 https://hf-mirror.com；"
-                             "或用 HF_ENDPOINT 环境变量）")
-    parser.add_argument("--source", default="auto",
-                        choices=("auto", "hf", "modelscope"),
-                        help="下载源优先级：auto=镜像→官方→魔搭（默认）；"
-                             "hf=只用 HuggingFace；modelscope=优先魔搭"
-                             "（国内实测快 5-8 倍）")
+    parser.add_argument(
+        "--checkpoint",
+        default="VOSR2",
+        choices=sorted(CHECKPOINTS),
+        help="要下载的检查点（默认 VOSR2）",
+    )
+    parser.add_argument(
+        "--endpoint",
+        default=DEFAULT_ENDPOINT,
+        help="HF 镜像端点（默认 https://hf-mirror.com；" "或用 HF_ENDPOINT 环境变量）",
+    )
+    parser.add_argument(
+        "--source",
+        default="auto",
+        choices=("auto", "hf", "modelscope"),
+        help="下载源优先级：auto=镜像→官方→魔搭（默认）；"
+        "hf=只用 HuggingFace；modelscope=优先魔搭"
+        "（国内实测快 5-8 倍）",
+    )
     args = parser.parse_args()
     endpoint = args.endpoint.rstrip("/")
 
     entry = CHECKPOINTS[args.checkpoint]
     print(f"检查点: {args.checkpoint} — {entry['name']}")
-    order = {"auto": f"{endpoint} → huggingface.co → modelscope",
-             "hf": f"{endpoint} → huggingface.co",
-             "modelscope": "modelscope → " + endpoint + " → huggingface.co"}
+    order = {
+        "auto": f"{endpoint} → huggingface.co → modelscope",
+        "hf": f"{endpoint} → huggingface.co",
+        "modelscope": "modelscope → " + endpoint + " → huggingface.co",
+    }
     print(f"来源优先级: {order[args.source]}")
     print(f"目标: {MODEL_ROOT}\n")
 

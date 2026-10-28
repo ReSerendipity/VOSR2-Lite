@@ -23,12 +23,8 @@ class PathGuard:
             resolved = Path(target).resolve()
         except OSError:
             return False
-        return any(
-            resolved == root or root in resolved.parents
-            for root in self._roots
-        )
+        return any(resolved == root or root in resolved.parents for root in self._roots)
 
 
-def build_default_path_guard(project_root: str,
-                             allowed_base_dirs: list[str]) -> PathGuard:
+def build_default_path_guard(project_root: str, allowed_base_dirs: list[str]) -> PathGuard:
     return PathGuard(project_root, allowed_base_dirs)

@@ -14,8 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 REQUEST_ID_HEADER = "X-Request-ID"
 
 # 请求 ID 上下文变量：中间件写入，日志过滤器读取
-current_request_id: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "request_id", default="-")
+current_request_id: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):

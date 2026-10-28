@@ -29,8 +29,15 @@ TASK_STATUSES = ("pending", "processing", "completed", "failed", "cancelled")
 
 # tasks 表允许 UPDATE 的列（白名单，防 SQL 注入）
 _TASK_UPDATABLE_COLUMNS = {
-    "status", "progress", "message", "error", "output_path",
-    "output_size", "processing_time", "current_stage", "finished_at",
+    "status",
+    "progress",
+    "message",
+    "error",
+    "output_path",
+    "output_size",
+    "processing_time",
+    "current_stage",
+    "finished_at",
 }
 
 
@@ -38,7 +45,7 @@ _TASK_UPDATABLE_COLUMNS = {
 class HistoryRecord:
     input_file: str
     output_file: str = ""
-    task_type: str = "image"          # image | video（预留）
+    task_type: str = "image"  # image | video（预留）
     status: str = "pending"
     checkpoint: str = ""
     params_json: str = "{}"
@@ -52,8 +59,7 @@ class HistoryRecord:
 class HistoryDB:
     """异步 SQLite 访问层（async with 或 initialize() 使用）。"""
 
-    def __init__(self, db_path: str = "data/history.db",
-                 max_records: int = 10000):
+    def __init__(self, db_path: str = "data/history.db", max_records: int = 10000):
         self.db_path = db_path
         self.max_records = max_records
         self._db: aiosqlite.Connection | None = None
@@ -65,8 +71,7 @@ class HistoryDB:
         await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.execute("PRAGMA busy_timeout=5000")
         await self._db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-        await self._db.execute(
-            """
+        await self._db.execute("""
             CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 input_file TEXT NOT NULL,
@@ -80,10 +85,8 @@ class HistoryDB:
                 output_size INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
             )
-            """
-        )
-        await self._db.execute(
-            """
+            """)
+        await self._db.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 task_id TEXT PRIMARY KEY,
                 record_id INTEGER,
@@ -100,10 +103,8 @@ class HistoryDB:
                 created_at TEXT NOT NULL,
                 finished_at TEXT DEFAULT NULL
             )
-            """
-        )
-        await self._db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
+            """)
+        await self._db.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
         await self._db.commit()
         logger.info(f"历史数据库已初始化: {self.db_path}")
 
@@ -134,10 +135,18 @@ class HistoryDB:
                                  processing_time, output_size, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (record.input_file, record.output_file, record.task_type,
-             record.status, record.checkpoint, record.params_json,
-             record.error, record.processing_time, record.output_size,
-             record.created_at),
+            (
+                record.input_file,
+                record.output_file,
+                record.task_type,
+                record.status,
+                record.checkpoint,
+                record.params_json,
+                record.error,
+                record.processing_time,
+                record.output_size,
+                record.created_at,
+            ),
         )
         await self.db.commit()
         await self.prune_old_records()
@@ -147,15 +156,22 @@ class HistoryDB:
     async def update_record(self, record_id: int, **kwargs: Any) -> bool:
         if not kwargs:
             return False
-        allowed = {"output_file", "status", "error", "processing_time",
-                   "output_size", "checkpoint", "params_json"}
+        allowed = {
+            "output_file",
+            "status",
+            "error",
+            "processing_time",
+            "output_size",
+            "checkpoint",
+            "params_json",
+        }
         cols = {k: v for k, v in kwargs.items() if k in allowed}
         if not cols:
             return False
         assignments = ", ".join(f"{k} = ?" for k in cols)
         await self.db.execute(
-            f"UPDATE history SET {assignments} WHERE id = ?",
-            (*cols.values(), record_id))
+            f"UPDATE history SET {assignments} WHERE id = ?", (*cols.values(), record_id)
+        )
         await self.db.commit()
         return True
 
@@ -169,29 +185,28 @@ class HistoryDB:
     """
 
     async def get_record(self, record_id: int) -> dict | None:
-        cursor = await self.db.execute(
-            self._RECORD_SELECT + " WHERE h.id = ?", (record_id,))
+        cursor = await self.db.execute(self._RECORD_SELECT + " WHERE h.id = ?", (record_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
 
-    async def get_records(self, page: int = 1, page_size: int = 20,
-                          status: str | None = None) -> tuple[list[dict], int]:
+    async def get_records(
+        self, page: int = 1, page_size: int = 20, status: str | None = None
+    ) -> tuple[list[dict], int]:
         where, params = "", []
         if status:
             where, params = "WHERE h.status = ?", [status]
-        cursor = await self.db.execute(
-            f"SELECT COUNT(*) FROM history h {where}", params)
+        cursor = await self.db.execute(f"SELECT COUNT(*) FROM history h {where}", params)
         count_row = await cursor.fetchone()
         total = int(count_row[0]) if count_row is not None else 0
         cursor = await self.db.execute(
             f"{self._RECORD_SELECT} {where} ORDER BY h.id DESC LIMIT ? OFFSET ?",
-            (*params, page_size, (page - 1) * page_size))
+            (*params, page_size, (page - 1) * page_size),
+        )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows], total
 
     async def delete_record(self, record_id: int) -> bool:
-        cursor = await self.db.execute(
-            "DELETE FROM history WHERE id = ?", (record_id,))
+        cursor = await self.db.execute("DELETE FROM history WHERE id = ?", (record_id,))
         await self.db.commit()
         return cursor.rowcount > 0
 
@@ -216,17 +231,16 @@ class HistoryDB:
         return cursor.rowcount or 0
 
     # ── tasks 表 ───────────────────────────────────────────────────────────
-    async def create_task(self, task_id: str, record_id: int | None,
-                          params_json: str = "{}",
-                          task_type: str = "image") -> None:
+    async def create_task(
+        self, task_id: str, record_id: int | None, params_json: str = "{}", task_type: str = "image"
+    ) -> None:
         await self.db.execute(
             """
             INSERT INTO tasks (task_id, record_id, status, params_json,
                                task_type, created_at)
             VALUES (?, ?, 'pending', ?, ?, ?)
             """,
-            (task_id, record_id, params_json, task_type,
-             time.strftime("%Y-%m-%d %H:%M:%S")),
+            (task_id, record_id, params_json, task_type, time.strftime("%Y-%m-%d %H:%M:%S")),
         )
         await self.db.commit()
 
@@ -236,13 +250,12 @@ class HistoryDB:
             return False
         assignments = ", ".join(f"{k} = ?" for k in cols)
         await self.db.execute(
-            f"UPDATE tasks SET {assignments} WHERE task_id = ?",
-            (*cols.values(), task_id))
+            f"UPDATE tasks SET {assignments} WHERE task_id = ?", (*cols.values(), task_id)
+        )
         await self.db.commit()
         return True
 
     async def get_task(self, task_id: str) -> dict | None:
-        cursor = await self.db.execute(
-            "SELECT * FROM tasks WHERE task_id = ?", (task_id,))
+        cursor = await self.db.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None

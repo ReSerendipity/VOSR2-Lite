@@ -62,8 +62,11 @@ async def _load_task(task_id: str, history_db: HistoryDB) -> dict:
 
 
 def _guard(config: dict):
-    allowed = config.get("runtime", {}).get("security", {}).get(
-        "allowed_base_dirs", ["outputs/", "data/uploads/"])
+    allowed = (
+        config.get("runtime", {})
+        .get("security", {})
+        .get("allowed_base_dirs", ["outputs/", "data/uploads/"])
+    )
     return build_default_path_guard(PROJECT_ROOT, allowed)
 
 
@@ -105,8 +108,9 @@ def _convert(src: str, fmt: str, quality: int) -> str:
                 img = canvas
             else:
                 img = img.convert("RGB")
-            img.save(tmp_path, "JPEG", quality=quality, optimize=True,
-                     progressive=True, subsampling=0)
+            img.save(
+                tmp_path, "JPEG", quality=quality, optimize=True, progressive=True, subsampling=0
+            )
         elif fmt == "webp":
             img.save(tmp_path, "WEBP", quality=quality, method=4)
         else:
@@ -129,10 +133,10 @@ async def get_input_image(
 ):
     """原图（对比查看器左侧；浏览器按 EXIF 方向渲染）。"""
     task = await _load_task(task_id, history_db)
-    src = _checked_file(await _input_path(task, history_db), _guard(config),
-                        "原图文件不存在")
-    return FileResponse(src, media_type=None, headers=_IMMUTABLE_CACHE,
-                        filename=os.path.basename(src))
+    src = _checked_file(await _input_path(task, history_db), _guard(config), "原图文件不存在")
+    return FileResponse(
+        src, media_type=None, headers=_IMMUTABLE_CACHE, filename=os.path.basename(src)
+    )
 
 
 @router.get("/{task_id}/preview")
@@ -148,13 +152,11 @@ async def get_preview(
     guard = _guard(config)
 
     if kind == "input":
-        src = _checked_file(await _input_path(task, history_db), guard,
-                            "原图文件不存在")
+        src = _checked_file(await _input_path(task, history_db), guard, "原图文件不存在")
     else:
         if task.get("status") != "completed":
             raise HTTPException(status_code=400, detail="任务尚未完成")
-        src = _checked_file(task.get("output_path") or "", guard,
-                            "结果文件不存在")
+        src = _checked_file(task.get("output_path") or "", guard, "结果文件不存在")
 
     os.makedirs(_PREVIEW_DIR, exist_ok=True)
     stem = f"{kind}_{task_id}_{max_side}"
@@ -169,17 +171,16 @@ async def get_preview(
         # Pillow 解码 6000² 级图片要几百毫秒，放线程里避免阻塞事件循环
         await asyncio.to_thread(build_thumbnail, src, dest, max_side)
 
-    return FileResponse(dest,
-                        media_type="image/png" if alpha else "image/jpeg",
-                        headers=_IMMUTABLE_CACHE)
+    return FileResponse(
+        dest, media_type="image/png" if alpha else "image/jpeg", headers=_IMMUTABLE_CACHE
+    )
 
 
 @router.get("/{task_id}/download")
 async def download_result(
     task_id: str,
     background: BackgroundTasks,
-    fmt: str = Query("", alias="format",
-                     pattern="^(|png|jpeg|webp)$"),
+    fmt: str = Query("", alias="format", pattern="^(|png|jpeg|webp)$"),
     quality: int = Query(92, ge=40, le=100),
     history_db: HistoryDB = Depends(get_history_db),
     config: dict = Depends(get_config),
@@ -188,17 +189,15 @@ async def download_result(
     task = await _load_task(task_id, history_db)
     if task.get("status") != "completed":
         raise HTTPException(status_code=400, detail="任务尚未完成")
-    src = _checked_file(task.get("output_path") or "", _guard(config),
-                        "结果文件不存在")
+    src = _checked_file(task.get("output_path") or "", _guard(config), "结果文件不存在")
 
     base = os.path.splitext(os.path.basename(src))[0]
     if not fmt:
-        return FileResponse(src, media_type="image/png",
-                            filename=f"{base}.png")
+        return FileResponse(src, media_type="image/png", filename=f"{base}.png")
 
     media_type, _ = _FORMATS[fmt]
     tmp_path = await asyncio.to_thread(_convert, src, fmt, quality)
     background.add_task(_remove_quietly, tmp_path)
-    return FileResponse(tmp_path, media_type=media_type,
-                        filename=f"{base}.{fmt}",
-                        background=background)
+    return FileResponse(
+        tmp_path, media_type=media_type, filename=f"{base}.{fmt}", background=background
+    )

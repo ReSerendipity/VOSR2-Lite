@@ -22,10 +22,14 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             logger.exception(f"未处理异常: {request.method} {request.url.path}")
             return JSONResponse(
                 status_code=500,
-                content={"success": False,
-                         "error": {"code": "INTERNAL_ERROR",
-                                   "message": "服务器内部错误，请查看日志",
-                                   "detail": {}}},
+                content={
+                    "success": False,
+                    "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "服务器内部错误，请查看日志",
+                        "detail": {},
+                    },
+                },
             )
 
 
@@ -46,9 +50,10 @@ def register_error_handlers(app) -> None:
             extra = {}
         return JSONResponse(
             status_code=exc.status_code,
-            content={"success": False,
-                     "error": {"code": f"HTTP_{exc.status_code}",
-                               "message": message, "detail": extra}},
+            content={
+                "success": False,
+                "error": {"code": f"HTTP_{exc.status_code}", "message": message, "detail": extra},
+            },
             headers=getattr(exc, "headers", None),
         )
 
@@ -56,8 +61,12 @@ def register_error_handlers(app) -> None:
     async def validation_exception_handler(request: Request, exc):
         return JSONResponse(
             status_code=422,
-            content={"success": False,
-                     "error": {"code": "VALIDATION_ERROR",
-                               "message": "请求参数不合法",
-                               "detail": exc.errors()}},
+            content={
+                "success": False,
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "请求参数不合法",
+                    "detail": exc.errors(),
+                },
+            },
         )

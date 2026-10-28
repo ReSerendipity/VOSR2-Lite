@@ -65,18 +65,19 @@ class ModelManager:
             required = list(_REQUIRED_CKPT)
             required = [p.format(name=name) for p in required]
             required += _REQUIRED_COMMON_QWEN if ae_type == "qwen" else _REQUIRED_COMMON_SD2
-            missing = [p for p in required
-                       if not os.path.isfile(os.path.join(self.model_root, p))]
-            infos.append(CheckpointInfo(
-                name=name,
-                display_name=cfg.get("name", name),
-                ckpt_type=cfg.get("type", "onestep"),
-                ae_type=ae_type,
-                min_vram_gb=float(cfg.get("min_vram_gb", 8)),
-                default_steps=int(cfg.get("default_steps", 1)),
-                present=not missing,
-                missing=missing,
-            ))
+            missing = [p for p in required if not os.path.isfile(os.path.join(self.model_root, p))]
+            infos.append(
+                CheckpointInfo(
+                    name=name,
+                    display_name=cfg.get("name", name),
+                    ckpt_type=cfg.get("type", "onestep"),
+                    ae_type=ae_type,
+                    min_vram_gb=float(cfg.get("min_vram_gb", 8)),
+                    default_steps=int(cfg.get("default_steps", 1)),
+                    present=not missing,
+                    missing=missing,
+                )
+            )
         return infos
 
     def get_info(self, name: str) -> CheckpointInfo | None:
@@ -109,15 +110,20 @@ class ModelManager:
         if not info.present:
             raise FileNotFoundError(
                 f"checkpoint {name} 权重不完整，缺少: {', '.join(info.missing)}；"
-                "请运行 python scripts/download_model.py 下载")
+                "请运行 python scripts/download_model.py 下载"
+            )
 
         if self._engine is not None:
             self._engine.unload()
         device = self.config.get("model.device", "auto")
         max_output_side = self.config.get("inference.max_output_side", None)
-        self._engine = VOSR2Engine(name, self.model_root, device=device,
-                                   progress_cb=progress_cb,
-                                   max_output_side=max_output_side)
+        self._engine = VOSR2Engine(
+            name,
+            self.model_root,
+            device=device,
+            progress_cb=progress_cb,
+            max_output_side=max_output_side,
+        )
         self._engine.load()
         self._engine_name = name
         self._last_used = time.time()
@@ -132,9 +138,11 @@ class ModelManager:
             logger.info("引擎已强制卸载")
 
     def unload_if_idle(self) -> bool:
-        if (self._engine is not None and self.idle_unload_minutes > 0
-                and time.time() - self._last_used
-                > self.idle_unload_minutes * 60):
+        if (
+            self._engine is not None
+            and self.idle_unload_minutes > 0
+            and time.time() - self._last_used > self.idle_unload_minutes * 60
+        ):
             self._engine.unload()
             self._engine = None
             self._engine_name = ""

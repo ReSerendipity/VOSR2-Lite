@@ -15,8 +15,7 @@ from PIL import Image, ImageOps
 
 
 def has_alpha(img: Image.Image) -> bool:
-    return img.mode in ("RGBA", "LA") or (
-        img.mode == "P" and "transparency" in img.info)
+    return img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
 
 
 def thumbnail_path(cache_dir: str, stem: str, alpha: bool) -> str:
@@ -32,8 +31,7 @@ def build_thumbnail(src: str, dest: str, max_side: int) -> None:
         if has_alpha(img):
             img.convert("RGBA").save(dest, "PNG", optimize=True)
         else:
-            img.convert("RGB").save(dest, "JPEG", quality=88, optimize=True,
-                                    progressive=True)
+            img.convert("RGB").save(dest, "JPEG", quality=88, optimize=True, progressive=True)
 
 
 def probe_alpha(src: str) -> bool:

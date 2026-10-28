@@ -39,18 +39,21 @@ def _upload(client, name="t.png", data=None, content_type="image/png", **form):
 
 
 # ── 表单参数校验矩阵（Depends 在进入端点前生效，返回 400 而非 422）──────
-@pytest.mark.parametrize("form,keyword", [
-    ({"upscale": 0}, "upscale"),
-    ({"upscale": 5}, "upscale"),
-    ({"upscale": -1}, "upscale"),
-    ({"align_method": "lab"}, "align_method"),
-    ({"align_method": "WAVELET"}, "align_method"),
-    ({"steps": 0}, "steps"),
-    ({"steps": 51}, "steps"),
-    ({"seed": -2}, "seed"),
-    ({"tile_size": -1}, "分块"),
-    ({"vae_tile_size": -8}, "分块"),
-])
+@pytest.mark.parametrize(
+    "form,keyword",
+    [
+        ({"upscale": 0}, "upscale"),
+        ({"upscale": 5}, "upscale"),
+        ({"upscale": -1}, "upscale"),
+        ({"align_method": "lab"}, "align_method"),
+        ({"align_method": "WAVELET"}, "align_method"),
+        ({"steps": 0}, "steps"),
+        ({"steps": 51}, "steps"),
+        ({"seed": -2}, "seed"),
+        ({"tile_size": -1}, "分块"),
+        ({"vae_tile_size": -8}, "分块"),
+    ],
+)
 def test_form_param_validation(client, form, keyword):
     """非法表单参数必须 400 且错误消息点明是哪个参数。"""
     resp = _upload(client, **form)
@@ -58,13 +61,25 @@ def test_form_param_validation(client, form, keyword):
     assert keyword in resp.json()["error"]["message"]
 
 
-@pytest.mark.parametrize("form", [
-    {"upscale": 1}, {"upscale": 2}, {"upscale": 3}, {"upscale": 4},
-    {"steps": 1}, {"steps": 25}, {"steps": 50},
-    {"align_method": "wavelet"}, {"align_method": "adain"},
-    {"align_method": "nofix"}, {"seed": -1}, {"seed": 0},
-    {"tile_size": 0}, {"tile_size": 512},
-])
+@pytest.mark.parametrize(
+    "form",
+    [
+        {"upscale": 1},
+        {"upscale": 2},
+        {"upscale": 3},
+        {"upscale": 4},
+        {"steps": 1},
+        {"steps": 25},
+        {"steps": 50},
+        {"align_method": "wavelet"},
+        {"align_method": "adain"},
+        {"align_method": "nofix"},
+        {"seed": -1},
+        {"seed": 0},
+        {"tile_size": 0},
+        {"tile_size": 512},
+    ],
+)
 def test_form_param_accepts_legal_values(client, form):
     """合法参数必须放行（枚举边界不能误伤）。"""
     resp = _upload(client, **form)
@@ -73,36 +88,42 @@ def test_form_param_accepts_legal_values(client, form):
 
 
 # ── 魔数校验（纯函数，覆盖全部支持格式）──────────────────────────────────
-@pytest.mark.parametrize("filename,head,expected", [
-    ("a.png", b"\x89PNG\r\n\x1a\n\x00\x00", True),
-    ("a.jpg", b"\xff\xd8\xff\xe0\x00\x10JFIF", True),
-    ("a.jpeg", b"\xff\xd8\xff\xdb", True),
-    ("a.gif", b"GIF89a\x01\x00", True),
-    ("a.gif", b"GIF87a\x01\x00", True),
-    ("a.bmp", b"BM\x36\x84", True),
-    ("a.webp", b"RIFF\x24\x00\x00\x00WEBPVP8 ", True),
-    ("a.tif", b"II*\x00\x08\x00", True),
-    ("a.tiff", b"MM\x00*\x00\x00", True),
-    # 伪造与截断
-    ("a.png", b"\xff\xd8\xff\xe0", False),          # JPEG 冒充 PNG
-    ("a.jpg", b"\x89PNG\r\n\x1a\n", False),         # PNG 冒充 JPEG
-    ("a.png", b"\x89PNG", False),                   # 截断到 4 字节
-    ("a.png", b"", False),                          # 空文件
-    ("a.webp", b"RIFF\x24\x00\x00\x00WAVE", False), # RIFF 但不是 WEBP
-    ("a.txt", b"\x89PNG\r\n\x1a\n", False),         # 扩展名本身不支持
-    ("a", b"\x89PNG\r\n\x1a\n", False),             # 无扩展名
-])
+@pytest.mark.parametrize(
+    "filename,head,expected",
+    [
+        ("a.png", b"\x89PNG\r\n\x1a\n\x00\x00", True),
+        ("a.jpg", b"\xff\xd8\xff\xe0\x00\x10JFIF", True),
+        ("a.jpeg", b"\xff\xd8\xff\xdb", True),
+        ("a.gif", b"GIF89a\x01\x00", True),
+        ("a.gif", b"GIF87a\x01\x00", True),
+        ("a.bmp", b"BM\x36\x84", True),
+        ("a.webp", b"RIFF\x24\x00\x00\x00WEBPVP8 ", True),
+        ("a.tif", b"II*\x00\x08\x00", True),
+        ("a.tiff", b"MM\x00*\x00\x00", True),
+        # 伪造与截断
+        ("a.png", b"\xff\xd8\xff\xe0", False),  # JPEG 冒充 PNG
+        ("a.jpg", b"\x89PNG\r\n\x1a\n", False),  # PNG 冒充 JPEG
+        ("a.png", b"\x89PNG", False),  # 截断到 4 字节
+        ("a.png", b"", False),  # 空文件
+        ("a.webp", b"RIFF\x24\x00\x00\x00WAVE", False),  # RIFF 但不是 WEBP
+        ("a.txt", b"\x89PNG\r\n\x1a\n", False),  # 扩展名本身不支持
+        ("a", b"\x89PNG\r\n\x1a\n", False),  # 无扩展名
+    ],
+)
 def test_validate_upload_magic(filename, head, expected):
     from app.integrated_app.security.magic_check import validate_upload_magic
 
     assert validate_upload_magic(filename, head) is expected
 
 
-@pytest.mark.parametrize("name,data", [
-    ("truncated.png", b"\x89PNG"),
-    ("empty.png", b""),
-    ("jpeg-as-png.png", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00"),
-])
+@pytest.mark.parametrize(
+    "name,data",
+    [
+        ("truncated.png", b"\x89PNG"),
+        ("empty.png", b""),
+        ("jpeg-as-png.png", b"\xff\xd8\xff\xe0\x00\x10JFIF\x00"),
+    ],
+)
 def test_upload_rejects_bad_magic(client, name, data):
     """接口层同样要拦：错误消息里必须点明「伪造」。"""
     resp = _upload(client, name=name, data=data)
@@ -144,9 +165,20 @@ def db_path(app):
     return app.state.history_db.db_path
 
 
-def _insert_task(db_path, status="pending", *, progress=0.0, message="",
-                 error="", output_path="", output_size=0, stage="",
-                 record_status=None, input_file="", output_file=""):
+def _insert_task(
+    db_path,
+    status="pending",
+    *,
+    progress=0.0,
+    message="",
+    error="",
+    output_path="",
+    output_size=0,
+    stage="",
+    record_status=None,
+    input_file="",
+    output_file="",
+):
     """直接写 sqlite 造一条指定状态的任务，返回 (task_id, record_id)。"""
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     task_id = uuid.uuid4().hex[:16]
@@ -159,8 +191,8 @@ def _insert_task(db_path, status="pending", *, progress=0.0, message="",
                                  output_size, created_at)
             VALUES (?, ?, 'image', ?, 'VOSR2', '{}', ?, 0, ?, ?)
             """,
-            (input_file, output_file, record_status or status,
-             error, output_size, now))
+            (input_file, output_file, record_status or status, error, output_size, now),
+        )
         record_id = int(cur.lastrowid)
         con.execute(
             """
@@ -169,8 +201,19 @@ def _insert_task(db_path, status="pending", *, progress=0.0, message="",
                                current_stage, task_type, params_json, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'image', '{}', ?)
             """,
-            (task_id, record_id, status, progress, message, error,
-             output_path, output_size, stage, now))
+            (
+                task_id,
+                record_id,
+                status,
+                progress,
+                message,
+                error,
+                output_path,
+                output_size,
+                stage,
+                now,
+            ),
+        )
         con.commit()
     finally:
         con.close()
@@ -181,8 +224,7 @@ def _task_row(db_path, task_id):
     con = sqlite3.connect(db_path)
     try:
         con.row_factory = sqlite3.Row
-        row = con.execute("SELECT * FROM tasks WHERE task_id = ?",
-                          (task_id,)).fetchone()
+        row = con.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
         return dict(row) if row else None
     finally:
         con.close()
@@ -192,8 +234,7 @@ def _record_row(db_path, record_id):
     con = sqlite3.connect(db_path)
     try:
         con.row_factory = sqlite3.Row
-        row = con.execute("SELECT * FROM history WHERE id = ?",
-                          (record_id,)).fetchone()
+        row = con.execute("SELECT * FROM history WHERE id = ?", (record_id,)).fetchone()
         return dict(row) if row else None
     finally:
         con.close()
@@ -299,8 +340,9 @@ def test_result_terminal_with_error(client, db_path, status):
 def test_result_completed_with_existing_file(client, db_path, tmp_path):
     out = tmp_path / "result.png"
     out.write_bytes(_png_bytes())
-    task_id, _ = _insert_task(db_path, "completed", progress=1.0,
-                              output_path=str(out), output_size=out.stat().st_size)
+    task_id, _ = _insert_task(
+        db_path, "completed", progress=1.0, output_path=str(out), output_size=out.stat().st_size
+    )
     data = client.get(f"/api/restore/{task_id}/result").json()["data"]
     assert data["status"] == "completed"
     assert data["output_path"] == str(out)
@@ -310,8 +352,7 @@ def test_result_completed_with_existing_file(client, db_path, tmp_path):
 
 def test_result_completed_with_missing_file_warns(client, db_path, tmp_path):
     """结果文件被删后仍应返回 completed，但必须带 warning 而不是 500。"""
-    task_id, _ = _insert_task(db_path, "completed",
-                              output_path=str(tmp_path / "gone.png"))
+    task_id, _ = _insert_task(db_path, "completed", output_path=str(tmp_path / "gone.png"))
     data = client.get(f"/api/restore/{task_id}/result").json()["data"]
     assert data["status"] == "completed"
     assert data["warning"] == "输出文件不存在"
@@ -335,8 +376,9 @@ def _sse_events(text: str) -> list[dict]:
 
 def test_sse_completed_task_emits_single_terminal_event(client, db_path):
     """已完成任务：发一条终态事件后立即结束（不能挂着等 1 小时）。"""
-    task_id, _ = _insert_task(db_path, "completed", progress=1.0,
-                              message="修复完成", stage="done", output_size=2048)
+    task_id, _ = _insert_task(
+        db_path, "completed", progress=1.0, message="修复完成", stage="done", output_size=2048
+    )
     resp = client.get(f"/api/restore/{task_id}/progress")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/event-stream")
@@ -378,9 +420,15 @@ def test_sse_headers_disable_buffering(client, db_path):
 
 
 # ── 历史库：分页边界、状态过滤、删除 ──────────────────────────────────────
-@pytest.mark.parametrize("query", [
-    "?page=0", "?page_size=0", "?page_size=101", "?page=-1",
-])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "?page=0",
+        "?page_size=0",
+        "?page_size=101",
+        "?page=-1",
+    ],
+)
 def test_history_rejects_out_of_range_paging(client, query):
     """分页参数越界必须是 422（Query 约束），不能静默纠正。"""
     assert client.get(f"/api/system/history{query}").status_code == 422
@@ -407,7 +455,8 @@ def test_history_status_filter(client, db_path):
 def test_history_delete_then_gone(client, db_path):
     _, record_id = _insert_task(db_path, "completed")
     assert client.delete(f"/api/system/history/{record_id}").json()["data"] == {
-        "deleted": record_id}
+        "deleted": record_id
+    }
     assert client.delete(f"/api/system/history/{record_id}").status_code == 404
 
 

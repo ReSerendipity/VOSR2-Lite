@@ -106,36 +106,37 @@ async def cancel_task(
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     if task["status"] not in ("pending", "processing"):
-        raise HTTPException(status_code=400,
-                            detail=f"任务状态为 {task['status']}，无法取消")
+        raise HTTPException(status_code=400, detail=f"任务状态为 {task['status']}，无法取消")
     task_queue.request_cancel(task_id)
-    await common.update_task_state(task_id, history_db, status="cancelled",
-                                   error="用户取消", finished_at=common.now_str())
+    await common.update_task_state(
+        task_id, history_db, status="cancelled", error="用户取消", finished_at=common.now_str()
+    )
     record_id = task.get("record_id")
     if record_id:
-        await history_db.update_record(record_id, status="cancelled",
-                                       error="用户取消")
+        await history_db.update_record(record_id, status="cancelled", error="用户取消")
     return respond_success({"task_id": task_id, "status": "cancelled"})
 
 
 @router.get("/{task_id}/result")
-async def get_result(task_id: str,
-                     history_db: HistoryDB = Depends(get_history_db)):
+async def get_result(task_id: str, history_db: HistoryDB = Depends(get_history_db)):
     task = await common.get_task_state(task_id, history_db)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     status = task["status"]
     if status in ("pending", "processing"):
-        return respond_success({"task_id": task_id, "status": status,
-                                "progress": task.get("progress", 0)})
+        return respond_success(
+            {"task_id": task_id, "status": status, "progress": task.get("progress", 0)}
+        )
     if status in ("failed", "cancelled"):
-        return respond_success({"task_id": task_id, "status": status,
-                                "error": task.get("error")})
+        return respond_success({"task_id": task_id, "status": status, "error": task.get("error")})
     output_path = task.get("output_path") or ""
     exists = await asyncio.to_thread(os.path.exists, output_path) if output_path else False
-    payload = {"task_id": task_id, "status": "completed",
-               "output_path": output_path,
-               "output_size": task.get("output_size", 0)}
+    payload = {
+        "task_id": task_id,
+        "status": "completed",
+        "output_path": output_path,
+        "output_size": task.get("output_size", 0),
+    }
     if not exists:
         payload["warning"] = "输出文件不存在"
     return respond_success(payload)

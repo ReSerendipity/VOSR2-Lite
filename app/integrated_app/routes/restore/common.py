@@ -57,8 +57,7 @@ async def get_task_state(task_id: str, history_db: HistoryDB) -> dict | None:
     return await history_db.get_task(task_id)
 
 
-async def update_task_state(task_id: str, history_db: HistoryDB,
-                            **kwargs) -> None:
+async def update_task_state(task_id: str, history_db: HistoryDB, **kwargs) -> None:
     await history_db.update_task(task_id, **kwargs)
 
 
@@ -70,7 +69,8 @@ def validate_image_extension(filename: str) -> None:
     if not is_image(filename):
         raise HTTPException(
             status_code=400,
-            detail=f"不支持的图片格式（支持: {', '.join(sorted(ALLOWED_IMAGE_EXTENSIONS))}）")
+            detail=f"不支持的图片格式（支持: {', '.join(sorted(ALLOWED_IMAGE_EXTENSIONS))}）",
+        )
 
 
 def params_to_json(params: dict) -> str:

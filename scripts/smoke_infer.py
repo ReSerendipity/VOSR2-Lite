@@ -34,21 +34,21 @@ from app.integrated_app.engines.vosr2_engine import (  # noqa: E402
 def main() -> None:
     parser = argparse.ArgumentParser(description="VOSR2-Lite CLI 推理冒烟")
     parser.add_argument("--input", "-i", required=True, help="输入图片路径")
-    parser.add_argument("--output-dir", "-o", default="outputs",
-                        help="输出目录（默认 outputs/）")
-    parser.add_argument("--upscale", "-u", type=int, default=2,
-                        choices=[1, 2, 3, 4], help="放大倍率（默认 2）")
+    parser.add_argument("--output-dir", "-o", default="outputs", help="输出目录（默认 outputs/）")
+    parser.add_argument(
+        "--upscale", "-u", type=int, default=2, choices=[1, 2, 3, 4], help="放大倍率（默认 2）"
+    )
     parser.add_argument("--steps", type=int, default=1, help="采样步数（默认 1）")
     parser.add_argument("--seed", type=int, default=42, help="随机种子（默认 42）")
-    parser.add_argument("--align-method", default="wavelet",
-                        choices=["wavelet", "adain", "nofix"],
-                        help="颜色对齐（默认 wavelet）")
-    parser.add_argument("--tile-size", type=int, default=0,
-                        help="DiT 分块像素尺寸（0=关闭）")
-    parser.add_argument("--vae-tile-size", type=int, default=0,
-                        help="VAE 分块像素尺寸（0=整图）")
-    parser.add_argument("--checkpoint", "-c", default="VOSR2",
-                        help="检查点目录名（默认 VOSR2）")
+    parser.add_argument(
+        "--align-method",
+        default="wavelet",
+        choices=["wavelet", "adain", "nofix"],
+        help="颜色对齐（默认 wavelet）",
+    )
+    parser.add_argument("--tile-size", type=int, default=0, help="DiT 分块像素尺寸（0=关闭）")
+    parser.add_argument("--vae-tile-size", type=int, default=0, help="VAE 分块像素尺寸（0=整图）")
+    parser.add_argument("--checkpoint", "-c", default="VOSR2", help="检查点目录名（默认 VOSR2）")
     args = parser.parse_args()
 
     if not os.path.isfile(args.input):
@@ -90,8 +90,9 @@ def main() -> None:
     out_path = os.path.join(args.output_dir, f"{stem}_x{args.upscale}.png")
     result.save(out_path)
 
-    logger.info(f"完成: {out_path} ({result.size[0]}x{result.size[1]}, "
-                f"推理耗时 {elapsed:.1f}s)")
+    logger.info(
+        f"完成: {out_path} ({result.size[0]}x{result.size[1]}, " f"推理耗时 {elapsed:.1f}s)"
+    )
     print(f"\n输出: {out_path}")
 
 

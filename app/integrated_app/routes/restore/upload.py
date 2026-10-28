@@ -39,11 +39,16 @@ router = APIRouter(prefix="/api/restore", tags=["修复"])
 _LOOP_HOLDER: dict[str, asyncio.AbstractEventLoop] = {}
 
 _STAGE_LABELS = {
-    "load_vae": "加载 VAE", "load_venc": "加载 DINOv2",
-    "load_dit": "加载 DiT", "init": "初始化",
-    "encode": "VAE 编码", "venc": "特征提取",
-    "sample": "扩散采样", "decode": "VAE 解码",
-    "align": "颜色对齐", "done": "完成",
+    "load_vae": "加载 VAE",
+    "load_venc": "加载 DINOv2",
+    "load_dit": "加载 DiT",
+    "init": "初始化",
+    "encode": "VAE 编码",
+    "venc": "特征提取",
+    "sample": "扩散采样",
+    "decode": "VAE 解码",
+    "align": "颜色对齐",
+    "done": "完成",
 }
 
 
@@ -69,10 +74,12 @@ def _make_progress_cb(task_id: str, history_db: HistoryDB):
         try:
             asyncio.run_coroutine_threadsafe(
                 common.update_task_state(
-                    task_id, history_db,
+                    task_id,
+                    history_db,
                     progress=round(min(max(ratio, 0.0), 1.0), 4),
                     message=_STAGE_LABELS.get(stage, stage),
-                    current_stage=stage),
+                    current_stage=stage,
+                ),
                 loop,
             )
         except Exception:
@@ -98,8 +105,13 @@ async def _run_restore_task(
 
     try:
         await common.update_task_state(
-            task_id, history_db, status="processing", progress=0.01,
-            message="正在加载模型", current_stage="load")
+            task_id,
+            history_db,
+            status="processing",
+            progress=0.01,
+            message="正在加载模型",
+            current_stage="load",
+        )
 
         engine = model_manager.get_engine(checkpoint or None)
         progress_cb = _make_progress_cb(task_id, history_db)
@@ -119,9 +131,8 @@ async def _run_restore_task(
             stem = os.path.splitext(os.path.basename(input_path))[0]
             # 输入名可能带 task_id 前缀，剥掉让输出名干净
             if stem.startswith(f"{task_id}_"):
-                stem = stem[len(task_id) + 1:]
-            out_path = os.path.join(get_outputs_dir(),
-                                    f"{stem}_vosr2_{task_id[:8]}.png")
+                stem = stem[len(task_id) + 1 :]
+            out_path = os.path.join(get_outputs_dir(), f"{stem}_vosr2_{task_id[:8]}.png")
             result.save(out_path)
             return out_path
 
@@ -131,15 +142,25 @@ async def _run_restore_task(
 
         elapsed = round(time.monotonic() - started, 2)
         await common.update_task_state(
-            task_id, history_db, status="completed", progress=1.0,
-            message="修复完成", current_stage="done",
-            output_path=out_path, output_size=size,
+            task_id,
+            history_db,
+            status="completed",
+            progress=1.0,
+            message="修复完成",
+            current_stage="done",
+            output_path=out_path,
+            output_size=size,
             processing_time=elapsed,
-            finished_at=common.now_str())
+            finished_at=common.now_str(),
+        )
         if record_id:
             await history_db.update_record(
-                record_id, status="completed", output_file=out_path,
-                output_size=size, processing_time=elapsed)
+                record_id,
+                status="completed",
+                output_file=out_path,
+                output_size=size,
+                processing_time=elapsed,
+            )
         logger.info(f"任务完成: {task_id} -> {out_path}")
 
     except Exception as exc:
@@ -149,19 +170,27 @@ async def _run_restore_task(
         if "out of memory" in str(exc).lower() or "cuda" in str(exc).lower():
             try:
                 model_manager.unload_engine()
-                logger.warning("检测到 CUDA 错误，已卸载引擎释放显存；"
-                               "如下个任务仍失败请重启服务")
+                logger.warning(
+                    "检测到 CUDA 错误，已卸载引擎释放显存；" "如下个任务仍失败请重启服务"
+                )
             except Exception:
                 pass
         await common.update_task_state(
-            task_id, history_db, status="failed",
-            error=str(exc), message="修复失败",
+            task_id,
+            history_db,
+            status="failed",
+            error=str(exc),
+            message="修复失败",
             processing_time=round(time.monotonic() - started, 2),
-            finished_at=common.now_str())
+            finished_at=common.now_str(),
+        )
         if record_id:
             await history_db.update_record(
-                record_id, status="failed", error=str(exc),
-                processing_time=round(time.monotonic() - started, 2))
+                record_id,
+                status="failed",
+                error=str(exc),
+                processing_time=round(time.monotonic() - started, 2),
+            )
 
 
 @router.post("/")
@@ -176,13 +205,11 @@ async def upload_and_restore(
     """上传图片并创建修复任务。"""
     common.validate_image_extension(file.filename or "")
 
-    max_mb = int(config.get("runtime", {}).get("security", {})
-                 .get("max_upload_image_mb", 50))
+    max_mb = int(config.get("runtime", {}).get("security", {}).get("max_upload_image_mb", 50))
     head = await file.read(16)
     await file.seek(0)
     if not validate_upload_magic(file.filename or "", head):
-        raise HTTPException(status_code=400,
-                            detail="文件内容与扩展名不符，疑似伪造格式")
+        raise HTTPException(status_code=400, detail="文件内容与扩展名不符，疑似伪造格式")
 
     task_id = common.new_task_id()
     safe_name = os.path.basename(file.filename or "upload.png")
@@ -197,29 +224,30 @@ async def upload_and_restore(
             if written > max_mb * 1024 * 1024:
                 f.close()
                 os.remove(input_path)
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"文件超过大小上限（{max_mb} MB）")
+                raise HTTPException(status_code=413, detail=f"文件超过大小上限（{max_mb} MB）")
             f.write(chunk)
 
     checkpoint = params.get("checkpoint") or config.get("model", {}).get(
-        "default_checkpoint", "VOSR2")
-    record_id = await history_db.add_record(HistoryRecord(
-        input_file=input_path,
-        task_type="image",
-        status="pending",
-        checkpoint=checkpoint,
-        params_json=common.params_to_json(params),
-    ))
-    await history_db.create_task(task_id, record_id,
-                                 params_json=common.params_to_json(params))
+        "default_checkpoint", "VOSR2"
+    )
+    record_id = await history_db.add_record(
+        HistoryRecord(
+            input_file=input_path,
+            task_type="image",
+            status="pending",
+            checkpoint=checkpoint,
+            params_json=common.params_to_json(params),
+        )
+    )
+    await history_db.create_task(task_id, record_id, params_json=common.params_to_json(params))
 
     _LOOP_HOLDER["loop"] = asyncio.get_running_loop()
     try:
         await task_queue.submit(
             task_id,
-            lambda: _run_restore_task(task_id, input_path, params,
-                                      history_db, model_manager, checkpoint),
+            lambda: _run_restore_task(
+                task_id, input_path, params, history_db, model_manager, checkpoint
+            ),
         )
     except TaskQueueFullError as exc:
         await history_db.update_record(record_id, status="failed", error=str(exc))

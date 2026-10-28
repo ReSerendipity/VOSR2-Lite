@@ -26,11 +26,22 @@ sys.path.insert(0, PROJECT_ROOT)
 
 
 # ── 自动分块决策：DiT 阈值 512 ──────────────────────────────────────────────
-@pytest.mark.parametrize("side,expected", [
-    (128, 0), (256, 0), (384, 0), (511, 0), (512, 0),   # ≤512 不分块
-    (513, 512), (768, 512), (1024, 512), (2048, 512),   # >512 开 DiT 分块
-    (3096, 512), (6144, 512),
-])
+@pytest.mark.parametrize(
+    "side,expected",
+    [
+        (128, 0),
+        (256, 0),
+        (384, 0),
+        (511, 0),
+        (512, 0),  # ≤512 不分块
+        (513, 512),
+        (768, 512),
+        (1024, 512),
+        (2048, 512),  # >512 开 DiT 分块
+        (3096, 512),
+        (6144, 512),
+    ],
+)
 def test_dit_tile_threshold(side, expected):
     """DiT 分块在输出 >512px 时开启（512 本身不分块，边界不含）。"""
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
@@ -40,10 +51,18 @@ def test_dit_tile_threshold(side, expected):
 
 
 # ── 自动分块决策：VAE 阈值 1024 + 显存分档 ──────────────────────────────────
-@pytest.mark.parametrize("side,expected_vae", [
-    (128, 0), (512, 0), (1024, 0),                      # ≤1024 整图编码
-    (1025, 512), (2048, 512), (3096, 512), (6144, 512),
-])
+@pytest.mark.parametrize(
+    "side,expected_vae",
+    [
+        (128, 0),
+        (512, 0),
+        (1024, 0),  # ≤1024 整图编码
+        (1025, 512),
+        (2048, 512),
+        (3096, 512),
+        (6144, 512),
+    ],
+)
 def test_vae_tile_threshold_low_vram(side, expected_vae):
     """≤16GB 可用显存：输出 >1024px 时 VAE 分块固定 512。"""
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
@@ -52,10 +71,18 @@ def test_vae_tile_threshold_low_vram(side, expected_vae):
     assert vae_tile == expected_vae
 
 
-@pytest.mark.parametrize("free_vram,expected_vae", [
-    (0.0, 512), (8.0, 512), (12.0, 512), (16.0, 512),    # 16.0 不算「大于 16」
-    (16.1, 1024), (24.0, 1024), (48.0, 1024),            # >16GB 放宽到 1024
-])
+@pytest.mark.parametrize(
+    "free_vram,expected_vae",
+    [
+        (0.0, 512),
+        (8.0, 512),
+        (12.0, 512),
+        (16.0, 512),  # 16.0 不算「大于 16」
+        (16.1, 1024),
+        (24.0, 1024),
+        (48.0, 1024),  # >16GB 放宽到 1024
+    ],
+)
 def test_vae_tile_vram_boundary(free_vram, expected_vae):
     """显存分档边界：严格大于 16GB 才放宽到 1024（16.0 仍走 512）。"""
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
@@ -64,14 +91,17 @@ def test_vae_tile_vram_boundary(free_vram, expected_vae):
     assert vae_tile == expected_vae
 
 
-@pytest.mark.parametrize("side,vram,expected", [
-    (256, 10.8, (0, 0)),
-    (1024, 10.8, (512, 0)),
-    (1025, 10.8, (512, 512)),
-    (3096, 10.8, (512, 512)),
-    (3096, 24.0, (512, 1024)),
-    (6144, 24.0, (512, 1024)),
-])
+@pytest.mark.parametrize(
+    "side,vram,expected",
+    [
+        (256, 10.8, (0, 0)),
+        (1024, 10.8, (512, 0)),
+        (1025, 10.8, (512, 512)),
+        (3096, 10.8, (512, 512)),
+        (3096, 24.0, (512, 1024)),
+        (6144, 24.0, (512, 1024)),
+    ],
+)
 def test_auto_tile_combined(side, vram, expected):
     """两级分块的组合结果（DiT × VAE）必须同时正确。"""
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
@@ -80,12 +110,15 @@ def test_auto_tile_combined(side, vram, expected):
 
 
 # ── 用户显式指定优先 ────────────────────────────────────────────────────────
-@pytest.mark.parametrize("user_tile,user_vae,expected", [
-    (256, 0, (256, 512)),      # 只指定 DiT，VAE 仍按规则自动
-    (0, 1024, (512, 1024)),    # 只指定 VAE，DiT 仍按规则自动
-    (256, 1024, (256, 1024)),  # 两者都指定
-    (1, 1, (1, 1)),            # 极小值也算显式指定（>0 即生效）
-])
+@pytest.mark.parametrize(
+    "user_tile,user_vae,expected",
+    [
+        (256, 0, (256, 512)),  # 只指定 DiT，VAE 仍按规则自动
+        (0, 1024, (512, 1024)),  # 只指定 VAE，DiT 仍按规则自动
+        (256, 1024, (256, 1024)),  # 两者都指定
+        (1, 1, (1, 1)),  # 极小值也算显式指定（>0 即生效）
+    ],
+)
 def test_auto_tile_user_override(user_tile, user_vae, expected):
     """用户显式指定（>0）必须覆盖自动决策。"""
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
@@ -111,11 +144,14 @@ def test_preflight_allows_exact_cap():
     assert engine._preflight_output(6145 - 1, 1) == 6144
 
 
-@pytest.mark.parametrize("output_side,upscale,expected_factor", [
-    (8000, 4, 3),    # 输入 2000px -> 6144//2000 = 3
-    (7000, 2, 1),    # 输入 3500px -> 6144//3500 = 1
-    (12288, 4, 2),   # 输入 3072px -> 6144//3072 = 2
-])
+@pytest.mark.parametrize(
+    "output_side,upscale,expected_factor",
+    [
+        (8000, 4, 3),  # 输入 2000px -> 6144//2000 = 3
+        (7000, 2, 1),  # 输入 3500px -> 6144//3500 = 1
+        (12288, 4, 2),  # 输入 3072px -> 6144//3072 = 2
+    ],
+)
 def test_preflight_suggested_factor(output_side, upscale, expected_factor):
     """超限错误必须带「本图最高 ×N」的可操作建议，且 N 可复现。"""
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
@@ -144,9 +180,16 @@ def _engine_with_args(tmp_path, **overrides):
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
 
     engine = VOSR2Engine("VOSR2", str(tmp_path))
-    args = {"upscale": 4, "infer_steps": 1, "align_method": "wavelet",
-            "tile_size": 0, "tile_overlap": 32, "vae_tile_size": 0,
-            "resolution": 512, "dim": 1536}
+    args = {
+        "upscale": 4,
+        "infer_steps": 1,
+        "align_method": "wavelet",
+        "tile_size": 0,
+        "tile_overlap": 32,
+        "vae_tile_size": 0,
+        "resolution": 512,
+        "dim": 1536,
+    }
     args.update(overrides)
     from types import SimpleNamespace
 
@@ -159,8 +202,9 @@ def test_effective_args_overrides(tmp_path):
     from app.integrated_app.engines.vosr2_engine import RestoreParams
 
     engine = _engine_with_args(tmp_path)
-    params = RestoreParams(upscale=2, steps=25, align_method="adain",
-                           tile_size=256, vae_tile_size=512, tile_overlap=64)
+    params = RestoreParams(
+        upscale=2, steps=25, align_method="adain", tile_size=256, vae_tile_size=512, tile_overlap=64
+    )
     eff = engine._effective_args(params)
     assert (eff.upscale, eff.infer_steps, eff.align_method) == (2, 25, "adain")
     assert (eff.tile_size, eff.vae_tile_size, eff.tile_overlap) == (256, 512, 64)
@@ -205,8 +249,8 @@ def test_args_explicit_overrides_default(tmp_path):
     ckpt = tmp_path / "VOSR2"
     ckpt.mkdir()
     (ckpt / "args.json").write_text(
-        '{"resolution": 1024, "infer_steps": 25, "distill_type": "multistep"}',
-        encoding="utf-8")
+        '{"resolution": 1024, "infer_steps": 25, "distill_type": "multistep"}', encoding="utf-8"
+    )
     args = VOSR2Engine("VOSR2", str(tmp_path))._load_args()
     assert (args.resolution, args.infer_steps) == (1024, 25)
     assert args.distill_type == "multistep"
@@ -220,8 +264,8 @@ def test_args_extra_keys_preserved(tmp_path):
     ckpt = tmp_path / "VOSR2"
     ckpt.mkdir()
     (ckpt / "args.json").write_text(
-        '{"upstream_new_flag": true, "layer_dinov2b_list": [9, 17]}',
-        encoding="utf-8")
+        '{"upstream_new_flag": true, "layer_dinov2b_list": [9, 17]}', encoding="utf-8"
+    )
     args = VOSR2Engine("VOSR2", str(tmp_path))._load_args()
     assert args.upstream_new_flag is True
     assert args.layer_dinov2b_list == [9, 17]
@@ -234,7 +278,8 @@ def test_args_ae_path_rewritten_to_model_root(tmp_path):
     ckpt = tmp_path / "VOSR2"
     ckpt.mkdir()
     (ckpt / "args.json").write_text(
-        '{"ae_path": "preset/ckpts/Qwen-Image-vae-2d"}', encoding="utf-8")
+        '{"ae_path": "preset/ckpts/Qwen-Image-vae-2d"}', encoding="utf-8"
+    )
     args = VOSR2Engine("VOSR2", str(tmp_path))._load_args()
     assert args.ae_path == os.path.join(str(tmp_path), "Qwen-Image-vae-2d")
     assert os.path.dirname(args.ae_path) == str(tmp_path)
@@ -267,7 +312,8 @@ def test_find_weights_priority_clean_weights(tmp_path):
         _touch(tmp_path / "VOSR2" / rel / "ema_model.safetensors")
     engine = VOSR2Engine("VOSR2", str(tmp_path))
     assert engine._find_weights() == os.path.join(
-        str(tmp_path), "VOSR2", "clean_weights", "ema_model.safetensors")
+        str(tmp_path), "VOSR2", "clean_weights", "ema_model.safetensors"
+    )
 
 
 def test_find_weights_priority_checkpoints_over_root(tmp_path):
@@ -278,7 +324,8 @@ def test_find_weights_priority_checkpoints_over_root(tmp_path):
     _touch(tmp_path / "VOSR2" / "checkpoints" / "ema_model.safetensors")
     engine = VOSR2Engine("VOSR2", str(tmp_path))
     assert engine._find_weights() == os.path.join(
-        str(tmp_path), "VOSR2", "checkpoints", "ema_model.safetensors")
+        str(tmp_path), "VOSR2", "checkpoints", "ema_model.safetensors"
+    )
 
 
 def test_find_weights_ema_preferred_over_model(tmp_path):
@@ -297,8 +344,7 @@ def test_find_weights_model_safetensors_fallback(tmp_path):
 
     _touch(tmp_path / "VOSR2" / "model.safetensors")
     engine = VOSR2Engine("VOSR2", str(tmp_path))
-    assert engine._find_weights() == os.path.join(
-        str(tmp_path), "VOSR2", "model.safetensors")
+    assert engine._find_weights() == os.path.join(str(tmp_path), "VOSR2", "model.safetensors")
 
 
 def test_find_weights_recursive_glob(tmp_path):
@@ -362,8 +408,7 @@ def test_align_adain_matches_source_stats():
     rng = np.random.default_rng(0)
     tgt = np.clip(0.25 + rng.normal(0, 0.20, (64, 64, 3)), 0.02, 0.98)
     src = np.clip(0.65 + rng.normal(0, 0.10, (64, 64, 3)), 0.02, 0.98)
-    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "adain"),
-                     dtype=np.float32) / 255.0
+    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "adain"), dtype=np.float32) / 255.0
     assert out.mean() == pytest.approx(src.mean(), abs=0.02)
     assert out.std() == pytest.approx(src.std(), abs=0.02)
 
@@ -375,8 +420,7 @@ def test_align_adain_preserves_target_structure():
     rng = np.random.default_rng(2)
     tgt = np.clip(0.5 + rng.normal(0, 0.15, (64, 64, 3)), 0.02, 0.98)
     src = np.clip(0.3 + rng.normal(0, 0.05, (64, 64, 3)), 0.02, 0.98)
-    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "adain"),
-                     dtype=np.float32) / 255.0
+    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "adain"), dtype=np.float32) / 255.0
     assert np.corrcoef(out.ravel(), tgt.ravel())[0, 1] > 0.95
 
 
@@ -401,8 +445,7 @@ def test_align_wavelet_lowfreq_follows_source():
     src = np.stack([0.2 + 0.6 * xx / 63.0] * 3, axis=-1)  # 水平渐变
     rng = np.random.default_rng(1)
     tgt = np.clip(0.5 + rng.normal(0, 0.15, (64, 64, 3)), 0, 1)
-    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "wavelet"),
-                     dtype=np.float32) / 255.0
+    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "wavelet"), dtype=np.float32) / 255.0
     src_low = cv2.GaussianBlur(src, (0, 0), 5)
     out_low = cv2.GaussianBlur(out, (0, 0), 5)
     assert np.abs(out_low - src_low).mean() < 0.03
@@ -417,8 +460,7 @@ def test_align_wavelet_keeps_target_highfreq():
     src = np.full((64, 64, 3), 0.5, dtype=np.float32)  # 纯低频参考
     rng = np.random.default_rng(3)
     tgt = np.clip(0.5 + rng.normal(0, 0.15, (64, 64, 3)), 0, 1)
-    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "wavelet"),
-                     dtype=np.float32) / 255.0
+    out = np.asarray(VOSR2Engine._align(_rgb(tgt), _rgb(src), "wavelet"), dtype=np.float32) / 255.0
     tgt_high = tgt - cv2.GaussianBlur(tgt, (0, 0), 5)
     out_high = out - cv2.GaussianBlur(out, (0, 0), 5)
     assert np.abs(out_high - tgt_high).mean() < 0.03
@@ -507,26 +549,36 @@ def test_pad_to_square_reflects_bottom_right():
     assert torch.allclose(out[:, :, :24, :32], x)
 
 
-@pytest.mark.parametrize("h,w,multiple,exp_h,exp_w", [
-    (32, 48, 16, 32, 48),    # 已对齐，不变
-    (30, 45, 16, 32, 48),    # 补到 16 的倍数
-    (5, 5, 8, 8, 8),         # 极小图也补齐（补边量 3 < 原边长 5）
-    (33, 17, 8, 40, 24),
-])
+@pytest.mark.parametrize(
+    "h,w,multiple,exp_h,exp_w",
+    [
+        (32, 48, 16, 32, 48),  # 已对齐，不变
+        (30, 45, 16, 32, 48),  # 补到 16 的倍数
+        (5, 5, 8, 8, 8),  # 极小图也补齐（补边量 3 < 原边长 5）
+        (33, 17, 8, 40, 24),
+    ],
+)
 def test_pad_to_multiple(h, w, multiple, exp_h, exp_w):
     from app.integrated_app.engines.vosr2_engine import _pad_to_multiple
 
     x = torch.randn(1, 3, h, w)
     out, oh, ow = _pad_to_multiple(x, multiple)
-    assert (oh, ow) == (h, w)          # 返回的是原始尺寸
+    assert (oh, ow) == (h, w)  # 返回的是原始尺寸
     assert tuple(out.shape) == (1, 3, exp_h, exp_w)
 
 
 # ── 分块网格与高斯权重（vendored 上游实现）────────────────────────────────
-@pytest.mark.parametrize("length,tile,overlap", [
-    (64, 64, 8), (128, 64, 8), (100, 64, 16), (512, 256, 32),
-    (1024, 256, 64), (40, 128, 8),
-])
+@pytest.mark.parametrize(
+    "length,tile,overlap",
+    [
+        (64, 64, 8),
+        (128, 64, 8),
+        (100, 64, 16),
+        (512, 256, 32),
+        (1024, 256, 64),
+        (40, 128, 8),
+    ],
+)
 def test_tile_grid_covers_entire_length(length, tile, overlap):
     """瓦片网格必须无缝覆盖 [0, length)：首块从 0 起、末块贴边界、无空洞。"""
     from vosr import tiled_vae

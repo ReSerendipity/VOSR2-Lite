@@ -70,7 +70,8 @@ def test_arg_defaults_merge(tmp_path):
     (ckpt_dir / "args.json").write_text(
         '{"dim": 1536, "depth": 36, "ae_type": "qwen", '
         '"ae_path": "preset/ckpts/Qwen-Image-vae-2d"}',
-        encoding="utf-8")
+        encoding="utf-8",
+    )
 
     engine = VOSR2Engine("VOSR2", str(tmp_path))
     args = engine._load_args()
@@ -137,8 +138,7 @@ def test_history_db_roundtrip(tmp_path):
     async def run():
         db = HistoryDB(db_path=str(tmp_path / "t.db"))
         await db.initialize()
-        rid = await db.add_record(HistoryRecord(
-            input_file="/tmp/in.png", checkpoint="VOSR2"))
+        rid = await db.add_record(HistoryRecord(input_file="/tmp/in.png", checkpoint="VOSR2"))
         await db.create_task("task123", rid)
         await db.update_task("task123", status="processing", progress=0.5)
         task = await db.get_task("task123")
@@ -225,8 +225,7 @@ def test_sd2_light_decoder_loads(tmp_path):
     torch.save(LightDecoder().state_dict(), ckpt)
 
     engine = VOSR2Engine("VOSR_0.5B_os", str(tmp_path))
-    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"),
-                                        torch.device("cpu"))
+    decoder = engine._build_sd2_decoder(SimpleNamespace(ae_type="sd2"), torch.device("cpu"))
     assert isinstance(decoder, LightDecoder)
     out = decoder(torch.zeros(1, 4, 8, 8))
     assert tuple(out.shape) == (1, 3, 64, 64)

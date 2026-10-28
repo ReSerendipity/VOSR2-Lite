@@ -54,8 +54,7 @@ def auto_discover_routes(app: FastAPI) -> None:
     logger.info(f"自动发现并注册 {len(routers)} 个路由模块")
 
 
-def render_page(request: Request, template_name: str, active_page: str = "",
-                **ctx) -> HTMLResponse:
+def render_page(request: Request, template_name: str, active_page: str = "", **ctx) -> HTMLResponse:
     """渲染页面模板，注入通用上下文（t / locales / version / i18n_flat / nonce）。"""
     i18n = request.app.state.i18n
     from app.integrated_app.i18n import get_flat_translations
@@ -66,8 +65,7 @@ def render_page(request: Request, template_name: str, active_page: str = "",
         "active_page": active_page,
         "current_locale": i18n.current_locale,
         "locale_name": i18n.get_locale_name(i18n.current_locale),
-        "locales": [{"code": c, "name": i18n.get_locale_name(c)}
-                    for c in i18n.available_locales],
+        "locales": [{"code": c, "name": i18n.get_locale_name(c)} for c in i18n.available_locales],
         "app_version": get_app_version(),
         "i18n_flat": get_flat_translations(i18n.current_locale),
         "csp_nonce": secrets.token_urlsafe(16),
@@ -113,8 +111,8 @@ def register_page_routes(app: FastAPI) -> None:
             return respond_error(
                 code="NOT_FOUND",
                 message=detail if isinstance(detail, str) else "请求的资源不存在",
-                status=404)
+                status=404,
+            )
         if request.url.path.startswith("/api/"):
-            return respond_error(code="NOT_FOUND",
-                                 message="API endpoint not found", status=404)
+            return respond_error(code="NOT_FOUND", message="API endpoint not found", status=404)
         return RedirectResponse(url="/", status_code=302)

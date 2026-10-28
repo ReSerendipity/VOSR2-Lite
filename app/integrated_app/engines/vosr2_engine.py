@@ -33,8 +33,9 @@ from PIL import Image
 from torchvision import transforms
 from torchvision.transforms import Normalize
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))))
+_PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
@@ -59,8 +60,7 @@ def _pad_to_square(x: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
     side = max(h, w)
     if h == side and w == side:
         return x, (h, w)
-    padded = torch.nn.functional.pad(
-        x, (0, side - w, 0, side - h), mode="reflect")
+    padded = torch.nn.functional.pad(x, (0, side - w, 0, side - h), mode="reflect")
     return padded, (h, w)
 
 
@@ -120,7 +120,7 @@ ProgressCb = Callable[[str, float], None]  # (stage, ratio 0..1)
 MAX_OUTPUT_SIDE_DEFAULT = 6144
 # 自动分块参数：Qwen VAE 为 fp32，全图编码约 11KB/像素，3096² 需 ~100GB，
 # 因此输出超过阈值必须分块（2026-10-23 实测 OOM 后的修复）。
-_VAE_TILE_AUTO_LOW_VRAM = 512    # 可用显存 ≤16GB
+_VAE_TILE_AUTO_LOW_VRAM = 512  # 可用显存 ≤16GB
 _VAE_TILE_AUTO_HIGH_VRAM = 1024  # 可用显存 >16GB
 _DIT_TILE_AUTO = 512
 
@@ -153,9 +153,14 @@ class EngineStatus:
 class VOSR2Engine:
     """VOSR2 检查点推理引擎（单实例，串行使用）。"""
 
-    def __init__(self, checkpoint_name: str, model_root: str,
-                 device: str = "auto", progress_cb: ProgressCb | None = None,
-                 max_output_side: int | None = None):
+    def __init__(
+        self,
+        checkpoint_name: str,
+        model_root: str,
+        device: str = "auto",
+        progress_cb: ProgressCb | None = None,
+        max_output_side: int | None = None,
+    ):
         self.checkpoint_name = checkpoint_name
         self.model_root = model_root
         self.device_pref = device
@@ -199,7 +204,8 @@ class VOSR2Engine:
         if not torch.cuda.is_available():
             raise RuntimeError(
                 "未检测到可用的 NVIDIA CUDA GPU。VOSR2-Lite 需要 CUDA 显卡"
-                "（≥8GB 显存跑 1.4B one-step）；CPU 推理不在支持范围。")
+                "（≥8GB 显存跑 1.4B one-step）；CPU 推理不在支持范围。"
+            )
         self.device = self.device_pref if self.device_pref in ("cuda", "cpu") else "cuda"
         dev = torch.device(self.device)
 
@@ -237,7 +243,8 @@ class VOSR2Engine:
         self._cb("ready", 1.0)
         logger.info(
             f"引擎就绪: {self.checkpoint_name} device={self.device} "
-            f"load={self.status.load_seconds}s vram={self.status.vram_gb}GB")
+            f"load={self.status.load_seconds}s vram={self.status.vram_gb}GB"
+        )
 
     # ── 加载各组件 ──────────────────────────────────────────────────────────
     def _load_args(self) -> types.SimpleNamespace:
@@ -281,8 +288,9 @@ class VOSR2Engine:
                         break
             missing, unexpected = decoder.load_state_dict(state, strict=False)
             if missing:
-                logger.warning(f"轻量解码器缺少 {len(missing)} 个权重，"
-                               f"效果可能异常（示例: {missing[:3]}）")
+                logger.warning(
+                    f"轻量解码器缺少 {len(missing)} 个权重，" f"效果可能异常（示例: {missing[:3]}）"
+                )
             decoder = decoder.to(dev).eval()
             for param in decoder.parameters():
                 param.requires_grad_(False)
@@ -291,7 +299,8 @@ class VOSR2Engine:
 
         logger.warning(
             "sd2 检查点未找到 sd21_lwdecoder.pth，回退标准 SD2.1 VAE 解码"
-            "（更慢、显存占用更高）；如需官方速度请重新运行下载脚本")
+            "（更慢、显存占用更高）；如需官方速度请重新运行下载脚本"
+        )
         return lambda latent: self.vae.decode(latent, return_dict=False)[0]
 
     def _load_vae(self, args, dev):
@@ -306,7 +315,8 @@ class VOSR2Engine:
             if not os.path.isdir(ae_path):
                 raise FileNotFoundError(
                     f"Qwen-Image 2D VAE 不存在: {ae_path}；"
-                    "请运行 python scripts/download_model.py")
+                    "请运行 python scripts/download_model.py"
+                )
             vae = AutoencoderKLQwenImage2D.from_pretrained(ae_path)
         elif ae_type == "sd2":
             from diffusers import AutoencoderKL
@@ -315,7 +325,8 @@ class VOSR2Engine:
             if not os.path.isdir(ae_path):
                 raise FileNotFoundError(
                     f"SD2.1 VAE 不存在: {ae_path}（0.5B 模型需要）；"
-                    "请运行 python scripts/download_model.py --checkpoint VOSR_0.5B_os")
+                    "请运行 python scripts/download_model.py --checkpoint VOSR_0.5B_os"
+                )
             vae = AutoencoderKL.from_pretrained(ae_path, subfolder="vae")
         else:
             raise ValueError(f"未知 ae_type: {ae_type}")
@@ -337,21 +348,22 @@ class VOSR2Engine:
         if variant is None:
             raise NotImplementedError(
                 f"不支持的视觉编码器 enc_type={args.enc_type}；"
-                f"已 vendored: {', '.join(sorted(DINOV2_VARIANTS))}")
+                f"已 vendored: {', '.join(sorted(DINOV2_VARIANTS))}"
+            )
         builder, weight_name, enc_dim = variant
 
         declared = int(getattr(args, "enc_dim", enc_dim))
         if declared != enc_dim:
             raise ValueError(
                 f"args.enc_dim={declared} 与 {args.enc_type} 的 {enc_dim} 不一致，"
-                "请检查检查点 args.json")
+                "请检查检查点 args.json"
+            )
 
-        ckpt = os.path.join(self.model_root, "torch_cache", "checkpoints",
-                            weight_name)
+        ckpt = os.path.join(self.model_root, "torch_cache", "checkpoints", weight_name)
         if not os.path.isfile(ckpt):
             raise FileNotFoundError(
-                f"DINOv2 权重不存在: {ckpt}；"
-                "请运行 python scripts/download_model.py")
+                f"DINOv2 权重不存在: {ckpt}；" "请运行 python scripts/download_model.py"
+            )
 
         encoder = builder()
         state = torch.load(ckpt, map_location="cpu")
@@ -423,9 +435,9 @@ class VOSR2Engine:
 
             def _make_forward(emb, dtype):
                 def forward(t: torch.Tensor) -> torch.Tensor:
-                    t_freq = TimestepEmbedder.timestep_embedding(
-                        t, emb.frequency_embedding_size)
+                    t_freq = TimestepEmbedder.timestep_embedding(t, emb.frequency_embedding_size)
                     return emb.mlp(t_freq.to(dtype))
+
                 return forward
 
             emb.forward = _make_forward(emb, dtype)  # type: ignore[method-assign]
@@ -497,7 +509,8 @@ class VOSR2Engine:
         if not hits:
             raise FileNotFoundError(
                 f"未找到 {self.checkpoint_name} 的权重文件（*.safetensors）；"
-                "请运行 python scripts/download_model.py")
+                "请运行 python scripts/download_model.py"
+            )
         return hits[0]
 
     def unload(self) -> None:
@@ -513,8 +526,9 @@ class VOSR2Engine:
 
     # ── 推理 ────────────────────────────────────────────────────────────────
     @staticmethod
-    def _auto_tile_sizes(output_side: int, free_vram_gb: float,
-                         user_tile: int, user_vae_tile: int) -> tuple[int, int]:
+    def _auto_tile_sizes(
+        output_side: int, free_vram_gb: float, user_tile: int, user_vae_tile: int
+    ) -> tuple[int, int]:
         """按输出边长与可用显存决定 (dit_tile, vae_tile)。
 
         规则（2026-10-23 实测 OOM 后固化）：
@@ -529,8 +543,7 @@ class VOSR2Engine:
             dit_tile = _DIT_TILE_AUTO
         vae_tile = user_vae_tile
         if vae_tile <= 0 and output_side > 1024:
-            vae_tile = (_VAE_TILE_AUTO_HIGH_VRAM if free_vram_gb > 16
-                        else _VAE_TILE_AUTO_LOW_VRAM)
+            vae_tile = _VAE_TILE_AUTO_HIGH_VRAM if free_vram_gb > 16 else _VAE_TILE_AUTO_LOW_VRAM
         return dit_tile, vae_tile
 
     def _preflight_output(self, output_side: int, upscale: int) -> int:
@@ -544,7 +557,8 @@ class VOSR2Engine:
             raise ValueError(
                 f"输出边长 {output_side}px 超过上限 {self.max_output_side}px"
                 f"（×{upscale} 放大）。请降低放大倍率"
-                f"（本图最高 ×{max_factor}）或先裁剪输入。")
+                f"（本图最高 ×{max_factor}）或先裁剪输入。"
+            )
         return output_side
 
     @staticmethod
@@ -558,7 +572,8 @@ class VOSR2Engine:
             raise ValueError(
                 f"多步采样（steps={steps}）在输出小于 {MULTISTEP_MIN_SIDE}px 时"
                 f"不稳定（本图输出 {output_w}×{output_h}）：请提高放大倍率、"
-                f"换更大的输入图，或把采样步数改为 1（一步蒸馏）")
+                f"换更大的输入图，或把采样步数改为 1（一步蒸馏）"
+            )
 
     def _effective_args(self, params: RestoreParams) -> types.SimpleNamespace:
         """把单次请求参数叠加到检查点 args 上（不改动 self.args）。"""
@@ -571,8 +586,9 @@ class VOSR2Engine:
         args.vae_tile_size = params.vae_tile_size
         return args
 
-    def restore(self, image: Image.Image, params: RestoreParams,
-                progress_cb: ProgressCb | None = None) -> Image.Image:
+    def restore(
+        self, image: Image.Image, params: RestoreParams, progress_cb: ProgressCb | None = None
+    ) -> Image.Image:
         """对单张 PIL 图像执行超分，返回结果 PIL 图像（RGB）。"""
         if not self.status.loaded:
             self.load()
@@ -595,17 +611,18 @@ class VOSR2Engine:
         output_long = max(output_w, output_h)
         self._preflight_output(output_long, params.upscale)
         self._check_multistep_side(params.steps, output_w, output_h)
-        free_gb = (torch.cuda.mem_get_info()[0] / 1024**3
-                   if torch.cuda.is_available() else 0.0)
+        free_gb = torch.cuda.mem_get_info()[0] / 1024**3 if torch.cuda.is_available() else 0.0
         dit_tile, vae_tile = self._auto_tile_sizes(
-            output_long, free_gb, params.tile_size, params.vae_tile_size)
+            output_long, free_gb, params.tile_size, params.vae_tile_size
+        )
         args.tile_size = dit_tile
         args.vae_tile_size = vae_tile
         if dit_tile or vae_tile:
             logger.info(
                 f"分块推理: 输出 {output_w}x{output_h}px, "
                 f"DiT tile={dit_tile or '关'}, VAE tile={vae_tile or '关'} "
-                f"(可用显存 {free_gb:.1f}GB)")
+                f"(可用显存 {free_gb:.1f}GB)"
+            )
 
         # 非方形图不裁剪内容：bicubic 预放大后 reflect 填充到 16 的倍数
         # （VAE 下采样 8 x DiT patch 2，保证 latent 对齐；VAE tiled 路径内部
@@ -620,12 +637,13 @@ class VOSR2Engine:
         with torch.no_grad():
             if dit_tile and dit_tile > 0:
                 sr_tensor = tiled_vae_latent_inference(
-                    self.dit, self.vae, self.venc, lq, args, device=dev,
-                    progress_cb=cb)
+                    self.dit, self.vae, self.venc, lq, args, device=dev, progress_cb=cb
+                )
                 _empty_cache()
             else:
                 lq_latent, latents_mean, latents_std = tiled_vae.encode_dispatch(
-                    self.vae, lq, args, dev)
+                    self.vae, lq, args, dev
+                )
                 _empty_cache()  # 释放 VAE 编码激活，给采样腾显存
                 # dtype 对齐：VAE 输出 fp32，DiT 可能为 fp16（显存适配），
                 # 采样前把 latent 转到 DiT 精度，避免 cat  dtype 不匹配
@@ -638,12 +656,13 @@ class VOSR2Engine:
                 _empty_cache()
                 self._report(cb, "sample", 0.4)
                 sr_latent = self._sample(lq_latent_sq, z_fea, args, cb)[
-                    :, :, :lat_hw[0], :lat_hw[1]]
+                    :, :, : lat_hw[0], : lat_hw[1]
+                ]
                 _empty_cache()
                 self._report(cb, "decode", 0.85)
                 sr_tensor = tiled_vae.decode_dispatch(
-                    self.vae, sr_latent.float(), args, latents_mean, latents_std,
-                    self.light_decoder)
+                    self.vae, sr_latent.float(), args, latents_mean, latents_std, self.light_decoder
+                )
                 _empty_cache()
 
         # NaN 防护：fp16 分块混合边缘可能产生极个别 NaN/Inf 像素，
@@ -667,17 +686,14 @@ class VOSR2Engine:
         """
         steps = max(1, int(args.infer_steps))
         if steps == 1:
-            return self.vosr.sample_onestep(
-                self.dit, lq_latent, venc_fea=z_fea, n_steps=1)
+            return self.vosr.sample_onestep(self.dit, lq_latent, venc_fea=z_fea, n_steps=1)
         self._report(cb, "sample", 0.45)
-        result = self.vosr.sample_multistep_fm(
-            self.dit, lq_latent, venc_fea=z_fea, n_steps=steps)
+        result = self.vosr.sample_multistep_fm(self.dit, lq_latent, venc_fea=z_fea, n_steps=steps)
         self._report(cb, "sample", 0.85)
         return result
 
     @staticmethod
-    def _align(sr_img: Image.Image, input_img: Image.Image,
-               method: str) -> Image.Image:
+    def _align(sr_img: Image.Image, input_img: Image.Image, method: str) -> Image.Image:
         if method == "adain":
             return _adain_color_fix(sr_img, input_img)
         if method == "wavelet":
@@ -694,8 +710,9 @@ class VOSR2Engine:
 
 
 # ── 分块推理（latent 空间，Gaussian 混合；逻辑对齐上游 tiled_latent_inference）──
-def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
-                               progress_cb: ProgressCb | None = None):
+def tiled_vae_latent_inference(
+    model, vae, venc, lq_tensor, args, device="cuda", progress_cb: ProgressCb | None = None
+):
     """DiT 前向按 latent 分块、Gaussian 混合；VAE 编解码按 vae_tile_size 分块。
 
     progress_cb: (stage, ratio 0..1)，ratio 在 encode(0.1)->venc(0.3)->
@@ -715,7 +732,8 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
 
     with torch.no_grad():
         lq_latent, latents_mean, latents_std = tiled_vae.encode_dispatch(
-            vae, lq_tensor, args, device)
+            vae, lq_tensor, args, device
+        )
     _report("encode", 0.15)
     _empty_cache()  # 释放 VAE 编码激活
     # dtype 对齐：VAE fp32 输出 -> DiT 精度（可能 fp16），解码前转回 fp32
@@ -738,13 +756,11 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
             t_seq = torch.linspace(1.0, 0.0, n_steps + 1, device=device)
             for i in range(n_steps):
                 t_cur, t_nxt = t_seq[i], t_seq[i + 1]
-                u = model(torch.cat([lq_latent, z], 1),
-                          t_cur.expand(b), t_nxt.expand(b), z_fea)
+                u = model(torch.cat([lq_latent, z], 1), t_cur.expand(b), t_nxt.expand(b), z_fea)
                 z = z - (t_cur - t_nxt) * u
                 _report("sample", 0.4 + 0.45 * (i + 1) / n_steps)
             _report("decode", 0.9)
-            out = tiled_vae.decode_dispatch(
-                vae, z.float(), args, latents_mean, latents_std, None)
+            out = tiled_vae.decode_dispatch(vae, z.float(), args, latents_mean, latents_std, None)
             _empty_cache()
             _report("done", 1.0)
             return out
@@ -755,8 +771,10 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
     # fp16 下溢为 0 会导致 0/0=NaN、角落出彩色噪点（2026-10-23 实测）。
     # DiT 前向仍走 fp16 省显存，仅累加与归一化升 fp32。
     g_weight = tiled_vae._gaussian_weights(lt_size, lt_size, lc, device).float()
-    logger.info(f"[分块推理] latent {lh}x{lw}, tile={lt_size}, "
-                f"overlap={lt_overlap}, grid={len(h_pos)}x{len(w_pos)}")
+    logger.info(
+        f"[分块推理] latent {lh}x{lw}, tile={lt_size}, "
+        f"overlap={lt_overlap}, grid={len(h_pos)}x{len(w_pos)}"
+    )
 
     tile_venc = {}
     with torch.no_grad():
@@ -783,18 +801,15 @@ def tiled_vae_latent_inference(model, vae, venc, lq_tensor, args, device="cuda",
             for hi in h_pos:
                 for wi in w_pos:
                     he, we = hi + lt_size, wi + lt_size
-                    inp = torch.cat([lq_latent[:, :, hi:he, wi:we],
-                                     z[:, :, hi:he, wi:we]], dim=1)
-                    u_tile = model(inp, t_cur.expand(b), t_nxt.expand(b),
-                                   tile_venc.get((hi, wi)))
+                    inp = torch.cat([lq_latent[:, :, hi:he, wi:we], z[:, :, hi:he, wi:we]], dim=1)
+                    u_tile = model(inp, t_cur.expand(b), t_nxt.expand(b), tile_venc.get((hi, wi)))
                     u_acc[:, :, hi:he, wi:we] += u_tile.float() * g_weight
                     w_acc[:, :, hi:he, wi:we] += g_weight
             z = (z.float() - dt * (u_acc / w_acc.clamp(min=1e-12))).to(z.dtype)
             _report("sample", 0.4 + 0.45 * (step_i + 1) / n_steps)
 
         _report("decode", 0.9)
-        out = tiled_vae.decode_dispatch(
-            vae, z.float(), args, latents_mean, latents_std, None)
+        out = tiled_vae.decode_dispatch(vae, z.float(), args, latents_mean, latents_std, None)
         _empty_cache()
         _report("done", 1.0)
         return out
@@ -813,9 +828,8 @@ def get_venc_features(venc, lq_tensor, args):
     if venc is None:
         return None
     with torch.no_grad():
-        raw_image = (0.5 * lq_tensor + 0.5)  # [-1,1] -> [0,1]
-        raw_image = F.interpolate(
-            raw_image, args.dinov2_size, mode="bicubic").clip(0.0, 1.0)
+        raw_image = 0.5 * lq_tensor + 0.5  # [-1,1] -> [0,1]
+        raw_image = F.interpolate(raw_image, args.dinov2_size, mode="bicubic").clip(0.0, 1.0)
         raw_image = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(raw_image)
         raw_image = raw_image.to(next(venc.parameters()).dtype)
         features, x_norm = venc.forward_with_features(raw_image)
@@ -844,8 +858,9 @@ def _wavelet_color_fix(target: Image.Image, source: Image.Image) -> Image.Image:
     import cv2
 
     target_np = np.array(target).astype(np.float32) / 255.0
-    source_np = np.array(
-        source.resize(target.size, Image.Resampling.LANCZOS)).astype(np.float32) / 255.0
+    source_np = (
+        np.array(source.resize(target.size, Image.Resampling.LANCZOS)).astype(np.float32) / 255.0
+    )
     sigma = 5
     source_low = cv2.GaussianBlur(source_np, (0, 0), sigma)
     target_low = cv2.GaussianBlur(target_np, (0, 0), sigma)

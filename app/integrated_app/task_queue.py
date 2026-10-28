@@ -25,8 +25,7 @@ MAX_WORKER_RESTARTS = 3
 
 
 class TaskQueue:
-    def __init__(self, *, maxsize: int = 100,
-                 task_timeout_seconds: int = 86400):
+    def __init__(self, *, maxsize: int = 100, task_timeout_seconds: int = 86400):
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=max(0, maxsize))
         self._cancelled_ids: set[str] = set()
         self._current_task_id: str | None = None
@@ -56,8 +55,9 @@ class TaskQueue:
         logger.info("任务队列 worker 已停止")
 
     # ── 提交 ────────────────────────────────────────────────────────────────
-    async def submit(self, task_id: str, coro_factory: TaskFactory,
-                     on_cancel: CancelCallback | None = None) -> None:
+    async def submit(
+        self, task_id: str, coro_factory: TaskFactory, on_cancel: CancelCallback | None = None
+    ) -> None:
         """提交任务；coro_factory 在 worker 实际执行时才调用（避免悬挂协程）。"""
         if self._queue.full():
             raise TaskQueueFullError("任务队列已满，请稍后再试")

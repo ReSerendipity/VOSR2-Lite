@@ -48,8 +48,7 @@ def _load_translations(lang: str) -> dict[str, str] | None:
 class I18n:
     """进程级 i18n 单例（与家族仓接口保持一致）。"""
 
-    def __init__(self, locales_dir: str | None = None,
-                 default_locale: str = "zh"):
+    def __init__(self, locales_dir: str | None = None, default_locale: str = "zh"):
         global LOCALES_DIR
         if locales_dir:
             LOCALES_DIR = locales_dir

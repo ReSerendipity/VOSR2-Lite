@@ -25,8 +25,10 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
 
-LOG_FORMAT = ("[%(asctime)s] [%(levelname)s] [%(name)s:%(filename)s:%(lineno)d] "
-              "[req=%(request_id)s] %(message)s")
+LOG_FORMAT = (
+    "[%(asctime)s] [%(levelname)s] [%(name)s:%(filename)s:%(lineno)d] "
+    "[req=%(request_id)s] %(message)s"
+)
 
 
 def setup_logging(config: dict | None = None) -> None:
@@ -51,9 +53,11 @@ def setup_logging(config: dict | None = None) -> None:
         try:
             log_path = os.path.join(PROJECT_ROOT, log_file)
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            handlers.append(logging.handlers.RotatingFileHandler(
-                log_path, maxBytes=max_bytes, backupCount=backup_count,
-                encoding="utf-8"))
+            handlers.append(
+                logging.handlers.RotatingFileHandler(
+                    log_path, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
+                )
+            )
         except OSError as exc:
             logging.getLogger("vosr2").warning(f"文件日志初始化失败，降级控制台: {exc}")
 
@@ -109,14 +113,12 @@ class VersionedStaticFiles(StaticFiles):
                 response.headers["Pragma"] = "no-cache"
             elif path.endswith((".woff2", ".woff", ".ttf", ".eot", ".otf")):
                 response.headers["Cache-Control"] = "public, max-age=2592000"
-            elif path.endswith((".png", ".jpg", ".jpeg", ".gif", ".svg",
-                                ".ico", ".webp")):
+            elif path.endswith((".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp")):
                 response.headers["Cache-Control"] = "public, max-age=86400"
         return response
 
 
-async def _model_idle_unload_loop(model_manager: ModelManager,
-                                  idle_minutes: int) -> None:
+async def _model_idle_unload_loop(model_manager: ModelManager, idle_minutes: int) -> None:
     while True:
         await asyncio.sleep(60)
         with contextlib.suppress(Exception):
@@ -136,7 +138,8 @@ async def lifespan(app: FastAPI):
     idle_minutes = int(config.get("model", {}).get("idle_unload_minutes", 15) or 0)
     if idle_minutes > 0:
         app.state.model_idle_unload_task = asyncio.create_task(
-            _model_idle_unload_loop(app.state.model_manager, idle_minutes))
+            _model_idle_unload_loop(app.state.model_manager, idle_minutes)
+        )
         logger.info(f"模型空闲自动卸载已启用: {idle_minutes} 分钟")
 
     if config.get("model", {}).get("auto_load", False):
@@ -148,8 +151,7 @@ async def lifespan(app: FastAPI):
     host = config.get("server", {}).get("host", "127.0.0.1")
     port = config.get("server", {}).get("port", 7871)
     if config.get("server", {}).get("auto_open_browser", True):
-        asyncio.get_running_loop().call_later(
-            1.5, lambda: webbrowser.open(f"http://{host}:{port}"))
+        asyncio.get_running_loop().call_later(1.5, lambda: webbrowser.open(f"http://{host}:{port}"))
 
     logger.info(f"VOSR2-Lite 已启动: http://{host}:{port}")
     yield
@@ -170,7 +172,11 @@ def create_app(config: dict | None = None) -> FastAPI:
         config = load_config()
 
     enable_docs = os.environ.get("VOSR2_ENABLE_DOCS", "1").strip().lower() not in (
-        "0", "false", "no", "off")
+        "0",
+        "false",
+        "no",
+        "off",
+    )
     app = FastAPI(
         title="VOSR2-Lite",
         description="基于 VOSR2 扩散模型的独立图像超分辨率工具箱",
@@ -183,7 +189,8 @@ def create_app(config: dict | None = None) -> FastAPI:
 
     # CORS（环境变量优先于 config.yaml）
     allowed_origins = config.get("server", {}).get(
-        "allowed_origins", ["http://127.0.0.1:7871", "http://localhost:7871"])
+        "allowed_origins", ["http://127.0.0.1:7871", "http://localhost:7871"]
+    )
     env_origins = os.environ.get("VOSR2_ALLOWED_ORIGINS", "").strip()
     if env_origins:
         allowed_origins = [o.strip() for o in env_origins.split(",") if o.strip()]
@@ -195,12 +202,13 @@ def create_app(config: dict | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    rate_limit = int(config.get("runtime", {}).get("security", {})
-                     .get("rate_limit_per_minute", 30))
+    rate_limit = int(config.get("runtime", {}).get("security", {}).get("rate_limit_per_minute", 30))
     if rate_limit >= 1:
-        app.add_middleware(RateLimitMiddleware,
-                           rate_limit_per_minute=rate_limit,
-                           get_rate_limit_per_minute=min(rate_limit * 4, 240))
+        app.add_middleware(
+            RateLimitMiddleware,
+            rate_limit_per_minute=rate_limit,
+            get_rate_limit_per_minute=min(rate_limit * 4, 240),
+        )
 
     app.add_middleware(ErrorHandlerMiddleware)
     register_error_handlers(app)
@@ -212,28 +220,32 @@ def create_app(config: dict | None = None) -> FastAPI:
     app.state.model_manager = ModelManager(AppConfig.load())
     app.state.history_db = HistoryDB(
         db_path=config.get("history", {}).get("db_path", "data/history.db"),
-        max_records=config.get("history", {}).get("max_records", 10000))
+        max_records=config.get("history", {}).get("max_records", 10000),
+    )
     app.state.task_queue = TaskQueue(
         maxsize=config.get("runtime", {}).get("task", {}).get("queue_maxsize", 100),
-        task_timeout_seconds=config.get("runtime", {}).get("task", {})
-        .get("max_timeout_seconds", 86400))
+        task_timeout_seconds=config.get("runtime", {})
+        .get("task", {})
+        .get("max_timeout_seconds", 86400),
+    )
     app.state.event_bus = event_bus
     app.state.i18n = init_i18n(
         locales_dir=os.path.join(os.path.dirname(__file__), "locales"),
-        default_locale=config.get("i18n", {}).get("default_locale", "zh"))
+        default_locale=config.get("i18n", {}).get("default_locale", "zh"),
+    )
 
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     templates_dir = os.path.join(os.path.dirname(__file__), "templates")
     if os.path.isdir(static_dir):
-        app.mount("/static", VersionedStaticFiles(directory=static_dir),
-                  name="static")
+        app.mount("/static", VersionedStaticFiles(directory=static_dir), name="static")
 
     import jinja2
 
     os.makedirs(templates_dir, exist_ok=True)
     app.state.jinja_env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(templates_dir),
-        autoescape=jinja2.select_autoescape(["html", "xml"]))
+        autoescape=jinja2.select_autoescape(["html", "xml"]),
+    )
 
     from app.integrated_app.routes import auto_discover_routes, register_page_routes
 
@@ -284,9 +296,13 @@ def main() -> None:
     setup_logging(config)
     app = create_app(config)
     logger.info(f"VOSR2-Lite 启动中... http://{host}:{port}")
-    uvicorn.run(app, host=host, port=port,
-                log_level=str(config.get("logging", {}).get("level", "INFO")).lower(),
-                reload=debug)
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        log_level=str(config.get("logging", {}).get("level", "INFO")).lower(),
+        reload=debug,
+    )
 
 
 if __name__ == "__main__":

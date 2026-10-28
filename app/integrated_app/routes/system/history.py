@@ -31,14 +31,15 @@ async def list_history(
     status: str | None = None,
     history_db: HistoryDB = Depends(get_history_db),
 ):
-    records, total = await history_db.get_records(
-        page=page, page_size=page_size, status=status)
-    return respond_success({
-        "records": records,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    })
+    records, total = await history_db.get_records(page=page, page_size=page_size, status=status)
+    return respond_success(
+        {
+            "records": records,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @router.get("/history/{record_id}/thumb")
@@ -54,8 +55,11 @@ async def history_thumbnail(
         raise HTTPException(status_code=404, detail="记录不存在")
 
     src = record.get("output_file") or record.get("input_file") or ""
-    allowed = config.get("runtime", {}).get("security", {}).get(
-        "allowed_base_dirs", ["outputs/", "data/uploads/"])
+    allowed = (
+        config.get("runtime", {})
+        .get("security", {})
+        .get("allowed_base_dirs", ["outputs/", "data/uploads/"])
+    )
     guard = build_default_path_guard(PROJECT_ROOT, allowed)
     if not src or not os.path.isfile(src) or not guard.is_safe_path(src):
         raise HTTPException(status_code=404, detail="缩略图源文件不存在")
@@ -72,14 +76,15 @@ async def history_thumbnail(
     if not os.path.isfile(dest):
         await asyncio.to_thread(build_thumbnail, src, dest, max_side)
 
-    return FileResponse(dest,
-                        media_type="image/png" if alpha else "image/jpeg",
-                        headers={"Cache-Control": "private, max-age=86400"})
+    return FileResponse(
+        dest,
+        media_type="image/png" if alpha else "image/jpeg",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
 
 
 @router.delete("/history/{record_id}")
-async def delete_history(record_id: int,
-                         history_db: HistoryDB = Depends(get_history_db)):
+async def delete_history(record_id: int, history_db: HistoryDB = Depends(get_history_db)):
     ok = await history_db.delete_record(record_id)
     if not ok:
         raise HTTPException(status_code=404, detail="记录不存在")
