@@ -58,6 +58,18 @@ DEFAULTS: dict[str, Any] = {
             "max_upload_image_mb": 50,
             "allowed_base_dirs": ["outputs/", "data/uploads/", "data/checkpoints/", "model/"],
             "headers": {"enabled": True, "csp": ""},
+            # Basic Auth（默认关闭；绑非回环地址时务必开启）
+            "auth": {
+                "enable": False,
+                "username": "",
+                "password": "",
+                "realm": "VOSR2",
+                "max_auth_failures": 5,
+                "auth_failure_window_seconds": 300,
+                "auth_ban_seconds": 600,
+            },
+            # CSRF（默认关闭；对外暴露或多用户场景建议开启）
+            "csrf": {"enable": False},
         },
         "task": {
             "queue_maxsize": 100,

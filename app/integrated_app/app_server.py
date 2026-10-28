@@ -85,6 +85,12 @@ from app.integrated_app.config import load_config  # noqa: E402
 from app.integrated_app.event_bus import event_bus  # noqa: E402
 from app.integrated_app.history_db import HistoryDB  # noqa: E402
 from app.integrated_app.i18n import init_i18n  # noqa: E402
+from app.integrated_app.middleware.basic_auth import (  # noqa: E402
+    BasicAuthMiddleware,
+    resolve_auth_settings,
+    should_enable_auth,
+)
+from app.integrated_app.middleware.csrf import CSRFMiddleware, should_enable_csrf  # noqa: E402
 from app.integrated_app.middleware.error_handler import (  # noqa: E402
     ErrorHandlerMiddleware,
     register_error_handlers,
@@ -252,6 +258,24 @@ def create_app(config: dict | None = None) -> FastAPI:
     # 顺序敏感：先页面路由，后自动发现 API 路由（FastAPI 0.141 懒加载失配坑）
     register_page_routes(app)
     auto_discover_routes(app)
+
+    # 安全中间件（默认关闭，config 开关控制）：CSRF 在内、Auth 在外，
+    # 未认证请求应先拿到 401 而不是 403；两者都在 ErrorHandler 之外，
+    # 其响应仍会经过 RequestID / SecurityHeaders。
+    if should_enable_csrf(config):
+        app.add_middleware(CSRFMiddleware)
+        logger.info("CSRF 保护已启用（Double Submit Cookie）")
+    if should_enable_auth(config):
+        auth = resolve_auth_settings(config)
+        app.add_middleware(
+            BasicAuthMiddleware,
+            username=auth["username"],
+            password=auth["password"],
+            realm=auth["realm"],
+            max_auth_failures=auth["max_auth_failures"],
+            auth_failure_window_seconds=auth["auth_failure_window_seconds"],
+            auth_ban_seconds=auth["auth_ban_seconds"],
+        )
 
     # LIFO：后添加 = 最外层。RequestID 最先执行，SecurityHeaders 最后装配
     app.add_middleware(RequestIDMiddleware)

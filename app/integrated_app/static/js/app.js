@@ -18,6 +18,14 @@
         return body || {};
     }
 
+    /* CSRF：服务端启用 CSRF 中间件（runtime.security.csrf.enable）时，非安全方法
+     * 需回传 cookie 里的 token（Double Submit Cookie）。未启用时没有该 cookie，
+     * 返回空对象，对现有请求零影响。 */
+    function csrfHeaders() {
+        const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+        return m ? { 'X-CSRF-Token': decodeURIComponent(m[1]) } : {};
+    }
+
     const api = {
         async get(url) {
             const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -27,19 +35,19 @@
         async post(url, data) {
             const resp = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
                 body: data === undefined ? undefined : JSON.stringify(data),
             });
             const body = await parseResponse(resp);
             return body.data !== undefined ? body.data : body;
         },
         async postForm(url, form) {
-            const resp = await fetch(url, { method: 'POST', body: form });
+            const resp = await fetch(url, { method: 'POST', headers: csrfHeaders(), body: form });
             const body = await parseResponse(resp);
             return body.data !== undefined ? body.data : body;
         },
         async del(url) {
-            const resp = await fetch(url, { method: 'DELETE' });
+            const resp = await fetch(url, { method: 'DELETE', headers: csrfHeaders() });
             const body = await parseResponse(resp);
             return body.data !== undefined ? body.data : body;
         },
