@@ -33,6 +33,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
 
@@ -46,6 +47,23 @@ packages = ["vosr", "app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+# ── 覆盖率门禁 ──────────────────────────────────────────────────────────────
+# 2026-10-28 实测基线：1873 语句 / 607 漏测 = 68%。阈值取 65，留 3 个点给
+# 正常波动的余量（新增未测代码时应当失败，而不是靠余量蒙混）。
+# 规则：只升不降——补测试后把 fail_under 同步上调，禁止为过门禁而下调。
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 65
+precision = 1
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
 
 [tool.ruff]
 line-length = 100

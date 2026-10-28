@@ -22,10 +22,15 @@ jobs:
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest ruff
+        run: pip install -r requirements.txt pytest pytest-cov ruff
 
       - name: Lint (ruff)
         run: ruff check .
 
       - name: Tests (pytest)
         run: pytest tests/ -v
+
+      # 覆盖率门禁：阈值在 pyproject.toml [tool.coverage.report] fail_under，
+      # 低于阈值 pytest 退出码非 0（2026-10-28 基线 68%，门禁 65%）。
+      - name: Coverage gate
+        run: pytest tests/ --cov=app --cov-report=term-missing --cov-report=xml
