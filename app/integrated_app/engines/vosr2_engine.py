@@ -547,6 +547,19 @@ class VOSR2Engine:
                 f"（本图最高 ×{max_factor}）或先裁剪输入。")
         return output_side
 
+    @staticmethod
+    def _check_multistep_side(steps: int, output_w: int, output_h: int) -> None:
+        """多步采样最小输出边长守卫（≤256px 实测发散成色块）。
+
+        一步蒸馏（steps=1）不受限；多步模型要求输出长边 ≥ MULTISTEP_MIN_SIDE。
+        独立成静态方法是为了让该守卫可被单测直接覆盖（restore() 需要真实权重）。
+        """
+        if steps > 1 and max(output_w, output_h) < MULTISTEP_MIN_SIDE:
+            raise ValueError(
+                f"多步采样（steps={steps}）在输出小于 {MULTISTEP_MIN_SIDE}px 时"
+                f"不稳定（本图输出 {output_w}×{output_h}）：请提高放大倍率、"
+                f"换更大的输入图，或把采样步数改为 1（一步蒸馏）")
+
     def _effective_args(self, params: RestoreParams) -> types.SimpleNamespace:
         """把单次请求参数叠加到检查点 args 上（不改动 self.args）。"""
         args = types.SimpleNamespace(**vars(self.args))
@@ -581,11 +594,7 @@ class VOSR2Engine:
         # 前置检查（按输出长边）+ 自动分块决策（防止大图全图 VAE 编码 OOM）
         output_long = max(output_w, output_h)
         self._preflight_output(output_long, params.upscale)
-        if params.steps > 1 and output_long < MULTISTEP_MIN_SIDE:
-            raise ValueError(
-                f"多步采样（steps={params.steps}）在输出小于 {MULTISTEP_MIN_SIDE}px 时"
-                f"不稳定（本图输出 {output_w}×{output_h}）：请提高放大倍率、"
-                f"换更大的输入图，或把采样步数改为 1（一步蒸馏）")
+        self._check_multistep_side(params.steps, output_w, output_h)
         free_gb = (torch.cuda.mem_get_info()[0] / 1024**3
                    if torch.cuda.is_available() else 0.0)
         dit_tile, vae_tile = self._auto_tile_sizes(
