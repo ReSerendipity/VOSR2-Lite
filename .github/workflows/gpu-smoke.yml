@@ -1,0 +1,127 @@
+# .github/workflows/gpu-smoke.yml
+# 推理链路冒烟：CPU 导入冒烟每次必跑；真机推理仅在检测到在线 GPU runner 时跑。
+#
+# 为什么需要：ci.yml 只跑 pytest（不加载权重、不碰 GPU），release.yml 只证明
+# 打包与版本位正确。两者都覆盖不到「引擎真能跑完一张图」。本工作流补这一层。
+#
+#   cpu-import-smoke    每次都跑：导入 app / vosr / 引擎，建 app，逐个探测 16 个
+#                       端点（含 404 信封与非法 task_id 400），再跑 CLI 冒烟脚本
+#                       的 --help。证明依赖树、应用工厂、路由注册没被改坏。
+#   gpu-real-inference  仅当仓库存在在线 self-hosted runner（label: gpu）时跑：
+#                       生成合成测试图 -> scripts/smoke_infer.py 真推理 -> 校验输出
+#                       尺寸与像素分布。没有 runner 时由 precheck 判定跳过，
+#                       不会把任务挂进队列干等。
+#
+# 触发：workflow_dispatch 手动 / release published 发布后 / 每周一 03:00 UTC 定时。
+#
+# Runner 前置条件（一次性，在 GPU 机器上）：
+#   1. 注册 self-hosted runner 并打 label `gpu`（Settings -> Actions -> Runners）
+#   2. CUDA 版 torch 就绪（python -c "import torch; print(torch.cuda.is_available())" 为 True）
+#   3. 预置权重：python scripts/download_model.py --checkpoint VOSR2
+#   4. 仓库 secret REPO_ADMIN_TOKEN（管理员级 PAT；runners 列表 API 对 GITHUB_TOKEN
+#      一律 403）。未配置时真机任务静默跳过，只跑 CPU 导入冒烟。
+name: GPU Smoke
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  schedule:
+    - cron: "0 3 * * 1" # 每周一 03:00 UTC（北京时间 11:00）
+
+permissions:
+  contents: read
+
+# 同一时刻只允许一个冒烟（真机串行；排队而非取消——真机验证不该被丢弃）
+concurrency:
+  group: gpu-smoke
+  cancel-in-progress: false
+
+jobs:
+  precheck:
+    name: Precheck (GPU runner availability)
+    runs-on: ubuntu-latest
+    outputs:
+      gpu_available: ${{ steps.check.outputs.available }}
+    steps:
+      - name: Check for an online self-hosted GPU runner
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::未配置 REPO_ADMIN_TOKEN，无法查询 runner 状态；真机冒烟跳过（CPU 导入冒烟照常执行）"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          COUNT=$(gh api "repos/${{ github.repository }}/actions/runners" \
+            --jq '[.runners[] | select(.status == "online") | select(any(.labels[]; .name == "gpu"))] | length')
+          echo "online gpu-labelled runners: ${COUNT}"
+          if [ "${COUNT}" -gt 0 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::无在线 self-hosted runner（label: gpu）；真机冒烟跳过（CPU 导入冒烟照常执行）"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  cpu-import-smoke:
+    name: CPU import + endpoint smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CPU PyTorch
+        run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import + endpoint smoke
+        run: python scripts/ci_import_smoke.py
+
+      - name: CLI smoke script is runnable
+        run: python scripts/smoke_infer.py --help
+
+  gpu-real-inference:
+    name: Real inference (self-hosted GPU)
+    needs: precheck
+    if: needs.precheck.outputs.gpu_available == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Verify CUDA torch
+        run: |
+          python -c "import torch, sys; print('torch', torch.__version__, 'cuda', torch.cuda.is_available()); sys.exit(0 if torch.cuda.is_available() else 1)"
+
+      - name: Verify model weights are provisioned
+        run: |
+          python -c "import os, sys; p = os.path.join('model', 'VOSR2', 'args.json'); print('weights marker:', p, os.path.isfile(p)); sys.exit(0 if os.path.isfile(p) else 1)" \
+            || { echo "::error::runner 上缺少 VOSR2 权重，请先执行 python scripts/download_model.py --checkpoint VOSR2"; exit 1; }
+
+      - name: Generate synthetic input
+        run: |
+          python -c "from PIL import Image; Image.new('RGB', (384, 256), (90, 120, 160)).save('smoke_input.png')"
+
+      - name: Run real inference (upscale x2, 1 step)
+        run: python scripts/smoke_infer.py -i smoke_input.png -o smoke_outputs -u 2 --steps 1 --seed 42
+
+      - name: Verify output image
+        run: |
+          python -c "
+          from PIL import Image
+          import sys
+          img = Image.open('smoke_outputs/smoke_input_x2.png').convert('RGB')
+          print('output size:', img.size)
+          ok = img.size == (768, 512)
+          extrema = img.getextrema()
+          flat = all(lo == hi for lo, hi in extrema)
+          print('extrema:', extrema, 'flat:', flat)
+          sys.exit(0 if ok and not flat else 1)
+          "
