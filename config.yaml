@@ -72,6 +72,7 @@ history:
 i18n:
   available_locales:
   - zh
+  - zh-TW
   - en
   default_locale: zh
 logging:

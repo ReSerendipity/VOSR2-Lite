@@ -26,7 +26,12 @@ async def set_locale(
     except Exception:
         pass
     requested = str(body.get("locale", "")).strip()
-    available = config.get("i18n", {}).get("available_locales", ["zh", "en"])
+    # 以实际加载到的语言包为准：config 里列了但没有对应 json 的语言无法切换，
+    # config 缺失时也不能退化成硬编码的两语言（新增语言包后要自动可用）。
+    configured = config.get("i18n", {}).get("available_locales") or []
+    available = [loc for loc in configured if loc in i18n.available_locales] or (
+        i18n.available_locales
+    )
     if requested not in available:
         from app.integrated_app.utils.response import respond_error
 

@@ -175,7 +175,7 @@
     "empty": "No records yet",
     "empty_desc": "Head to the workbench and upload your first image.",
     "confirm_delete": "Delete this record?",
-    "total_prefix": "",
+    "total_prefix": "Total ",
     "total_suffix": " records"
   },
   "settings": {

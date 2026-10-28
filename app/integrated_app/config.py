@@ -50,7 +50,7 @@ DEFAULTS: dict[str, Any] = {
         "align_methods": ["wavelet", "adain", "nofix"],
     },
     "history": {"db_path": "data/history.db", "max_records": 10000},
-    "i18n": {"available_locales": ["zh", "en"], "default_locale": "zh"},
+    "i18n": {"available_locales": ["zh", "zh-TW", "en"], "default_locale": "zh"},
     "logging": {"file": "logs/app.log", "level": "INFO", "max_size_mb": 50, "backup_count": 3},
     "runtime": {
         "security": {

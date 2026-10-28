@@ -35,8 +35,8 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 - **实时进度**：SSE 推送加载 / 编码 / 特征 / 采样 / 解码 / 对齐各阶段进度与已用 / 剩余时间。
 - **历史记录**：SQLite 持久化任务与缩略图，可分页回看、对比、下载、删除。
 - **效率细节**：参数预设本地保存、Ctrl+V 粘贴上传、输出尺寸与耗时预估、下载可选 PNG / JPEG / WebP、失败卡一键重试、快捷键（0/1/±/M/C）。
-- **多语言界面**：简体中文 / English；主题跟随系统，可手动切换。
-- **安全基线**：仅绑 `127.0.0.1`、CSP / 安全响应头、上传魔数校验、限流、路径白名单。
+- **多语言界面**：简体中文 / 繁體中文 / English；主题跟随系统，可手动切换。
+- **安全基线**：仅绑 `127.0.0.1`、CSP / 安全响应头、上传魔数校验、限流、路径白名单；可选 HTTP Basic Auth（含失败封禁）与 CSRF 双提交防护，默认关闭、`config.yaml` 开关控制。
 
 ### 展示
 
@@ -142,6 +142,7 @@ DINOv2 架构已本地 vendored，无需 clone 上游仓库。
 
 ### 文档与治理
 
+- [docs/用户手册.md](docs/用户手册.md)：面向使用者的完整手册（参数怎么选、查看器操作、安全开关、故障排查、命令行工具）。
 - [docs/release-governance.md](docs/release-governance.md)：发布 / 回滚治理（版本位同步、资产清单与 SHA-256 校验、draft 人工审核、回滚方式）。
 - [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md)：使用合规声明。
 - [docs/agent-contract.md](docs/agent-contract.md)：自动化 agent 协作契约。
@@ -149,7 +150,7 @@ DINOv2 架构已本地 vendored，无需 clone 上游仓库。
 
 ### 安全、贡献与支持
 
-**网络绑定警告**：Web UI 默认仅绑定 `127.0.0.1`（`config.yaml` 的 `server.host`）。**严禁改为 `0.0.0.0` 或公网 IP**——默认配置下直接暴露，将导致任意调用推理 API 占用 GPU、上传恶意文件、下载 `outputs/` 内容。应用自带请求限流（默认 30 次/分钟）；如需局域网共享，请自行评估风险并加反向代理 + HTTPS。
+**网络绑定警告**：Web UI 默认仅绑定 `127.0.0.1`（`config.yaml` 的 `server.host`）。**严禁改为 `0.0.0.0` 或公网 IP**——默认配置下直接暴露，将导致任意调用推理 API 占用 GPU、上传恶意文件、下载 `outputs/` 内容。应用自带请求限流（默认 30 次/分钟）；确需局域网共享时，**先开启 Basic Auth**（`runtime.security.auth.enable`，密码可用 `VOSR2_AUTH_PASSWORD` 环境变量注入），再叠加反向代理 + HTTPS，详见 [docs/用户手册.md](docs/用户手册.md#8-安全开关默认全关)。
 
 **贡献**：欢迎 Issue 与 PR。提交请遵循 [Conventional Commits](https://www.conventionalcommits.org/) + DCO 签名（`git commit -s`），详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
@@ -180,8 +181,8 @@ VOSR2-Lite is a standalone image super-resolution toolkit built on [VOSR2](https
 - **Live progress**: SSE pushes every stage (load / encode / feature / sample / decode / align) plus elapsed and ETA.
 - **History**: SQLite-persisted tasks with thumbnails — paginate, compare, download, delete.
 - **Workflow details**: local parameter presets, Ctrl+V paste upload, output-size & ETA estimate, PNG/JPEG/WebP download, one-click retry on failure, keyboard shortcuts (0/1/±/M/C).
-- **Bilingual UI**: Simplified Chinese / English; theme follows the system and can be overridden.
-- **Security baseline**: loopback-only bind, CSP / security headers, upload magic-byte check, rate limit, path allow-list.
+- **Bilingual UI**: Simplified Chinese / Traditional Chinese / English; theme follows the system and can be overridden.
+- **Security baseline**: loopback-only bind, CSP / security headers, upload magic-byte check, rate limit, path allow-list; optional HTTP Basic Auth (with brute-force ban) and CSRF double-submit protection, both off by default and toggled in `config.yaml`.
 
 ### Screenshots
 
@@ -287,6 +288,7 @@ The DINOv2 architecture is vendored locally — no upstream clone needed.
 
 ### Docs & governance
 
+- [docs/用户手册.md](docs/用户手册.md): end-user manual (parameter choices, viewer controls, security switches, troubleshooting, CLI tools).
 - [docs/release-governance.md](docs/release-governance.md): release / rollback governance (version-bump sync, asset manifest + SHA-256, draft human review, rollback procedure).
 - [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md): usage terms.
 - [docs/agent-contract.md](docs/agent-contract.md): automation-agent collaboration contract.

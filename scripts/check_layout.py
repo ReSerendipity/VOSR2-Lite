@@ -54,6 +54,11 @@ REQUIRED_PATHS = [
     "scripts/smoke_infer.py",
     "scripts/ci_import_smoke.py",
     "tests/conftest.py",
+    # 文档与语言包
+    "docs/用户手册.md",
+    "app/integrated_app/locales/zh.json",
+    "app/integrated_app/locales/zh-TW.json",
+    "app/integrated_app/locales/en.json",
 ]
 
 # 家族治理约定：AGENTS.md 的完整本地版不入库；但本仓根 AGENTS.md 是**公开精简版**

@@ -19,7 +19,7 @@ from loguru import logger
 
 LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
 
-LOCALE_NAMES = {"zh": "简体中文", "en": "English"}
+LOCALE_NAMES = {"zh": "简体中文", "zh-TW": "繁體中文", "en": "English"}
 
 
 def _flatten(data: dict, prefix: str = "") -> dict[str, str]:
