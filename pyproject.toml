@@ -1,6 +1,6 @@
 [project]
 name = "vosr2-lite"
-version = "0.2.0"
+version = "0.2.1"
 description = "基于 VOSR2 扩散模型的独立图像超分辨率工具箱（FastAPI + Web UI，无需 ComfyUI）"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-28
+
+### Fixed
+
+- **CI 类型门禁在 v0.2.0 提交上失败**：`scripts/ci_import_smoke.py` 用
+  `client.request(method, path, **kwargs)` 拼装请求参数，`kwargs` 被推断为
+  `dict[str, dict[str, str]]`，在 CI 的依赖版本下触发 4 条 `arg-type`。改为显式分支
+  （仅语言切换端点传 `json=`），与 httpx/starlette 版本无关。
+  > v0.2.0 的 tag 受 `tag-protection-v` 规则保护不可移动，故以 0.2.1 修复前进；
+  > v0.2.0 运行时功能与此版一致，差异仅在该 CI 辅助脚本。
+
 ## [0.2.0] - 2026-10-28
 
 本轮为「向家族仓 SeedVR2-Lite 吸收工程能力」的成果，并反向补齐了若干实测缺陷。
