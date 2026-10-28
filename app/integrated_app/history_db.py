@@ -141,6 +141,7 @@ class HistoryDB:
         )
         await self.db.commit()
         await self.prune_old_records()
+        assert cursor.lastrowid is not None, "INSERT 未返回 lastrowid"
         return int(cursor.lastrowid)
 
     async def update_record(self, record_id: int, **kwargs: Any) -> bool:
@@ -180,7 +181,8 @@ class HistoryDB:
             where, params = "WHERE h.status = ?", [status]
         cursor = await self.db.execute(
             f"SELECT COUNT(*) FROM history h {where}", params)
-        total = int((await cursor.fetchone())[0])
+        count_row = await cursor.fetchone()
+        total = int(count_row[0]) if count_row is not None else 0
         cursor = await self.db.execute(
             f"{self._RECORD_SELECT} {where} ORDER BY h.id DESC LIMIT ? OFFSET ?",
             (*params, page_size, (page - 1) * page_size))
@@ -195,7 +197,8 @@ class HistoryDB:
 
     async def count_records(self) -> int:
         cursor = await self.db.execute("SELECT COUNT(*) FROM history")
-        return int((await cursor.fetchone())[0])
+        count_row = await cursor.fetchone()
+        return int(count_row[0]) if count_row is not None else 0
 
     async def prune_old_records(self, max_records: int | None = None) -> int:
         limit = max_records or self.max_records

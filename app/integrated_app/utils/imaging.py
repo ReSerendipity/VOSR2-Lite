@@ -28,7 +28,7 @@ def build_thumbnail(src: str, dest: str, max_side: int) -> None:
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with Image.open(src) as raw:
         img = ImageOps.exif_transpose(raw)
-        img.thumbnail((max_side, max_side), Image.LANCZOS)
+        img.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
         if has_alpha(img):
             img.convert("RGBA").save(dest, "PNG", optimize=True)
         else:

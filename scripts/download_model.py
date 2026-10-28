@@ -36,6 +36,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from typing import cast
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_ROOT = os.path.join(PROJECT_ROOT, "model")
@@ -207,7 +208,8 @@ def main() -> None:
     print(f"来源优先级: {order[args.source]}")
     print(f"目标: {MODEL_ROOT}\n")
 
-    for rel in entry["files"]:  # type: ignore[union-attr]
+    # CHECKPOINTS 的值是 dict[str, object]（各检查点字段不一），此处按约定取文件清单
+    for rel in cast("list[str]", entry["files"]):
         _fetch(str(rel), endpoint, args.source)
 
     print("\n完成。可运行 python scripts/smoke_infer.py -i <图片> -o outputs/ -u 2 验证。")

@@ -230,7 +230,7 @@ class VOSR2Engine:
             loaded=True,
             checkpoint=self.checkpoint_name,
             device=str(dev),
-            dtype=str(next(self.dit.parameters()).dtype),
+            dtype=str(next(self.dit.parameters()).dtype),  # type: ignore[attr-defined]
             load_seconds=round(time.time() - t0, 2),
             vram_gb=round(torch.cuda.memory_allocated() / 1024**3, 2),
         )
@@ -428,7 +428,7 @@ class VOSR2Engine:
                     return emb.mlp(t_freq.to(dtype))
                 return forward
 
-            emb.forward = _make_forward(emb, dtype)
+            emb.forward = _make_forward(emb, dtype)  # type: ignore[method-assign]
             logger.debug(f"已为 {name} 应用 fp16 dtype 补丁")
 
     @staticmethod
@@ -611,7 +611,7 @@ class VOSR2Engine:
         # （VAE 下采样 8 x DiT patch 2，保证 latent 对齐；VAE tiled 路径内部
         # 还会按 8 补齐），VAE 解码后裁回请求的输出尺寸。方案对齐社区
         # ComfyUI-VOSR2（2026-10-23 采纳）。
-        input_img = raw.resize((output_w, output_h), Image.BICUBIC)
+        input_img = raw.resize((output_w, output_h), Image.Resampling.BICUBIC)
         lq = transforms.ToTensor()(input_img).unsqueeze(0).to(dev) * 2.0 - 1.0
         lq, _, _ = _pad_to_multiple(lq, 16)  # 补齐到 16 倍数（VAE 8 x DiT patch 2）
         # input_img 保留到颜色对齐之后（wavelet/adain 需要它做参考）
@@ -629,7 +629,7 @@ class VOSR2Engine:
                 _empty_cache()  # 释放 VAE 编码激活，给采样腾显存
                 # dtype 对齐：VAE 输出 fp32，DiT 可能为 fp16（显存适配），
                 # 采样前把 latent 转到 DiT 精度，避免 cat  dtype 不匹配
-                dit_dtype = next(self.dit.parameters()).dtype
+                dit_dtype = next(self.dit.parameters()).dtype  # type: ignore[attr-defined]
                 lq_latent = lq_latent.to(dit_dtype)
                 # forward_flexible 仅支持方形 latent：reflect 补方，算完裁回
                 lq_latent_sq, lat_hw = _pad_to_square(lq_latent)
@@ -844,7 +844,8 @@ def _wavelet_color_fix(target: Image.Image, source: Image.Image) -> Image.Image:
     import cv2
 
     target_np = np.array(target).astype(np.float32) / 255.0
-    source_np = np.array(source.resize(target.size, Image.LANCZOS)).astype(np.float32) / 255.0
+    source_np = np.array(
+        source.resize(target.size, Image.Resampling.LANCZOS)).astype(np.float32) / 255.0
     sigma = 5
     source_low = cv2.GaussianBlur(source_np, (0, 0), sigma)
     target_low = cv2.GaussianBlur(target_np, (0, 0), sigma)

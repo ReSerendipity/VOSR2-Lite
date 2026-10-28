@@ -44,10 +44,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self._config = config
 
     def _headers_config(self) -> dict[str, Any]:
+        """取 runtime.security.headers 段；任一层不是 dict 都按「未配置」处理。"""
         if not isinstance(self._config, dict):
             return {}
-        return ((self._config.get("runtime") or {}).get("security") or {}
-                .get("headers") or {})
+        runtime = self._config.get("runtime") or {}
+        if not isinstance(runtime, dict):
+            return {}
+        security = runtime.get("security") or {}
+        if not isinstance(security, dict):
+            return {}
+        headers = security.get("headers") or {}
+        return headers if isinstance(headers, dict) else {}
 
     async def dispatch(self, request: Request, call_next):
         response: Response = await call_next(request)

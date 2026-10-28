@@ -74,3 +74,32 @@ extend-exclude = ["vosr"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
+
+# ── 类型与格式门禁（2026-10-28 建立，0 容忍）───────────────────────────────
+# vosr/ 为上游 cswry/VOSR 的 vendor 代码，与 ruff 同口径不参与门禁。
+[tool.mypy]
+python_version = "3.12"
+files = ["app", "scripts"]
+exclude = ["^vosr/"]
+ignore_missing_imports = true
+follow_imports = "silent" # 不检查 vendor 内部，但仍取其类型信息
+no_implicit_optional = true
+show_error_codes = true
+warn_unused_ignores = false
+warn_redundant_casts = true
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = '''
+/(
+    \.venv
+  | vosr
+  | model
+  | data
+  | outputs
+  | logs
+  | build
+  | dist
+)/
+'''
