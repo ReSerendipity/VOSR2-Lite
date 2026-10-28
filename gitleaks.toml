@@ -1,0 +1,14 @@
+# VOSR2-Lite gitleaks 配置
+# 基于官方默认规则扩展（useDefault = true 保留全部内置检测规则），
+# 只追加经人工核验的误报 allowlist，保证门禁可用且不误伤。
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "经人工核验的误报清单"
+paths = [
+  # 本地密钥与历史库：已被 .gitignore 排除；若因误操作进入工作区也不刷屏
+  '''data/\.vosr2_secret''',
+  '''data/.*\.db(-shm|-wal|-journal)?$''',
+]
