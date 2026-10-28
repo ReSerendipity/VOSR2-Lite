@@ -87,10 +87,12 @@ def main() -> int:
             app = create_app({"history": {"db_path": os.path.join(tmp, "smoke.db")}})
             with TestClient(app) as client:
                 for method, path, allowed, label in PROBES:
-                    kwargs = {}
+                    # 显式分支而不是 **kwargs 拼装：kwargs 的异构值类型在不同
+                    # mypy 版本下推断不同（本地 2.4 放行、CI 最新版报 arg-type）
                     if path == "/api/system/locale":
-                        kwargs["json"] = {"locale": "zh"}
-                    resp = client.request(method, path, **kwargs)
+                        resp = client.request(method, path, json={"locale": "zh"})
+                    else:
+                        resp = client.request(method, path)
                     ok = resp.status_code in allowed
                     mark = "OK" if ok else "FAIL"
                     print(f"[{mark}] {method} {path} -> {resp.status_code}（{label}）")
