@@ -63,3 +63,6 @@ backups/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ── 治理（§7.1 / §13.1）────────────────────────────────────────────────────
+AGENTS.md

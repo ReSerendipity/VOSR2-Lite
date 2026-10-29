@@ -1,36 +1,38 @@
-# Agent 完整契约（docs/agent-contract.md）
+# Agent 契约（v1）
 
-> 本文件可入库（对外可见），写清协作契约；纯本地上下文放 `local/`（不入库）。
+<!-- governance:agent-contract v1 -->
 
-## 1. 仓库定位
+本文件由 `ReSerendipity/.github` 统一维护，仓内副本必须与模板逐字节一致；
+权威治理规范见 [governance](https://github.com/ReSerendipity/.github/tree/main/governance)。
 
-- 当前定位：**active**（新项目搭建期，允许新功能）。
-- 模型权重与运行产物一律不入库；`model/` 仅保留 `.gitkeep` 与说明。
+## 适用范围
 
-## 2. 环境与验证基线
+所有在本仓工作的 AI agent（本地或云端），无论工具、模型与会话。新会话开头先读本文件。
 
-- Python >= 3.12；torch >= 2.7（cu128；RTX 50 系 sm_120 必须，cu121 不支持）。
-- 验证命令：
-  - `pytest tests/ -v`
-  - `ruff check .`
-  - `python scripts/smoke_infer.py -i <图片> -o outputs/ -u 2`（需模型就位）
-- 端口：默认 `127.0.0.1:7871`（README 与 `config.yaml` 为唯一事实来源）。
+## 开工前
 
-## 3. 上游 vendor 边界
+1. 读本仓根 `README.md` 与根 `AGENTS.md`（若有）。
+2. 查 `governance/desired-state.json` 中本仓的 `delivery` / `lifecycle`：
+   `maintenance` 只允许 bug / 依赖 / 安全修复；`active` 才允许新功能。
+3. 治理正文只在 `.github/governance`；不要凭记忆复述规则，以该仓当前 `main` 为准。
 
-- `vosr/` 为上游 cswry/VOSR（Apache-2.0）的 vendor；只允许最小必要适配，
-  每次改动必须记录到 `vosr/UPSTREAM.md`（改了什么、为什么）。
-- 新功能写在 `app/` 侧，不污染 `vosr/`。
+## 硬约束（违反即回退）
 
-## 4. 安全红线
+- 禁止入库：密钥 / token / 口令 / 连接串；本机绝对路径与用户名；`local/` 内容；
+  嵌套或模块级 `AGENTS.md`；`docs/plans`、`docs/project`、`docs/_devarchive`、
+  `docs/agents`、`docs/execution`。
+- 提交必须带 DCO：`git commit -s`，身份用 noreply；不得使用个人邮箱。
+- 不改平台设置（分支保护、ruleset、Secrets、仓库可见性），除非任务明确要求且所有者授权。
+- 不删除、不重置、不 stash 用户未提交的改动；不 `git add -A`。
+- 发布链只按 §10：远端优先、tag 驱动、资产附 `SHA256SUMS.txt`。
 
-- 仅绑 `127.0.0.1`；局域网共享必须显式开启 Basic Auth / 反向代理 HTTPS。
-- 上传文件类型白名单（png/jpg/jpeg/webp/bmp/tif/tiff），大小上限见
-  `config.yaml` 的 `runtime.security.max_upload_image_mb`。
-- 输出路径必须落在 `runtime.security.allowed_base_dirs` 之内。
+## 交付前
 
-## 5. 提交与分支
+- `git status` 只含本次改动；`git diff` 能逐行解释。
+- 跑本仓 `README.md` 里的测试 / 检查命令；失败不隐藏、不静默跳过。
+- PR 描述写清：改了什么、为什么、怎么验证、哪些没做。
 
-- Conventional Commits + DCO（`-s`），noreply 邮箱。
-- 一个 commit 一件事；不 force push、不 `--no-verify`。
-- 远程同步：默认本地修改 → 用户确认 → push；push 后 `git pull` 防分叉。
+## 变更
+
+本文件由 `.github` 的 `governance/templates/agent-contract.md` 生成；
+仓内副本与模板不一致时，漂移审计会报红。
