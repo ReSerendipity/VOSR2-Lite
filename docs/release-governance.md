@@ -73,7 +73,7 @@
   重新下载并替换**（重下 `VOSR2-Lite-v<上一版>.zip` → 校验 SHA-256 → 替换安装目录）。
 - **破坏性动作**：重指向 / 删除 tag、移动任何远端 ref 须仓库所有者单独授权（§10.2）。
 - **回滚后验证**：`python scripts/smoke_infer.py -i <test.png> -o outputs/` 跑通一次真实推理；
-  Web UI 健康接口 `/api/system/ping` 返回 ok。
+  Web UI 健康接口 `/api/system/health` 返回 200 且响应体含 `data.gpu` 与 `data.queue` 字段。
 
 ## 6. SLA / 错误预算
 

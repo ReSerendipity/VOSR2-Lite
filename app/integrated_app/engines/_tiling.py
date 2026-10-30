@@ -15,6 +15,7 @@ from loguru import logger
 from torchvision.transforms import Normalize
 
 from app.integrated_app.engines._core import ProgressCb, _empty_cache
+from app.integrated_app.exceptions import InferenceCancelled
 from vosr import tiled_vae
 
 IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
@@ -61,6 +62,8 @@ def tiled_vae_latent_inference(
         if progress_cb:
             try:
                 progress_cb(stage, ratio)
+            except InferenceCancelled:
+                raise
             except Exception:
                 pass
 

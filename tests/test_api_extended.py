@@ -319,6 +319,63 @@ def test_cancel_is_idempotent_at_second_call(client, db_path):
     assert client.post(f"/api/restore/{task_id}/cancel").status_code == 400
 
 
+def test_cancel_while_running_stops_inference(tmp_path, monkeypatch):
+    """运行中取消必须在下一个进度回调处中断推理，且不得写回 completed、不留输出文件。"""
+    import asyncio
+    import threading
+
+    from app.integrated_app.history_db import HistoryDB, HistoryRecord
+    from app.integrated_app.routes.restore import upload as upload_mod
+
+    out_dir = tmp_path / "outputs"
+    out_dir.mkdir()
+    monkeypatch.setattr(upload_mod, "get_outputs_dir", lambda: str(out_dir))
+
+    task_id = uuid.uuid4().hex[:16]
+    cancel_event = threading.Event()
+    started_steps: list[int] = []
+
+    class _FakeEngine:
+        """模拟多点进度的推理：第一步之后收到取消请求。"""
+
+        def restore(self, image, params, progress_cb=None):
+            for i in range(5):
+                if progress_cb:
+                    progress_cb("sample", 0.4 + i * 0.1)
+                started_steps.append(i)
+                cancel_event.set()
+            return image
+
+    class _FakeModelManager:
+        def get_engine(self, name=None):
+            return _FakeEngine()
+
+    img = tmp_path / "in.png"
+    Image.new("RGB", (16, 16)).save(img)
+
+    async def run():
+        db = HistoryDB(db_path=str(tmp_path / "t.db"))
+        await db.initialize()
+        rid = await db.add_record(HistoryRecord(input_file=str(img), checkpoint="VOSR2"))
+        await db.create_task(task_id, rid)
+        await db.update_task(task_id, status="processing", progress=0.3)
+        await upload_mod._run_restore_task(
+            task_id, str(img), {}, db, _FakeModelManager(), "", cancel_event
+        )
+        task = await db.get_task(task_id)
+        record = await db.get_record(rid)
+        await db.close()
+        return task, record
+
+    task, record = asyncio.run(run())
+
+    assert task["status"] == "cancelled"
+    assert record["status"] == "cancelled"
+    assert "取消" in task["error"]
+    assert started_steps == [0]  # 第二步的进度回调之前就被中断
+    assert list(out_dir.iterdir()) == []  # 不产出输出文件
+
+
 # ── 结果查询：四种状态的返回形状 ──────────────────────────────────────────
 @pytest.mark.parametrize("status", ["pending", "processing"])
 def test_result_in_progress(client, db_path, status):

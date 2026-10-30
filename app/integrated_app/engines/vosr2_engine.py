@@ -54,6 +54,7 @@ from app.integrated_app.engines._tiling import (
     tiled_vae_latent_inference,
 )
 from app.integrated_app.engines._weights import _ARG_DEFAULTS, WeightsMixin
+from app.integrated_app.exceptions import InferenceCancelled
 from vosr import tiled_vae
 from vosr.vosr import VOSR
 
@@ -111,6 +112,8 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
         if self._progress_cb:
             try:
                 self._progress_cb(stage, ratio)
+            except InferenceCancelled:
+                raise
             except Exception:  # 进度回调失败不影响推理
                 pass
 

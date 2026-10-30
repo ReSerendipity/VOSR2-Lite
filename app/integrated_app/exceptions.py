@@ -12,3 +12,7 @@ class TaskQueueFullError(Exception):
 
 class ModelNotReadyError(Exception):
     """模型未加载或权重缺失。"""
+
+
+class InferenceCancelled(Exception):
+    """推理过程中收到取消请求（协作式中断，由进度回调抛出）。"""

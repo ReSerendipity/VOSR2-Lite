@@ -76,6 +76,7 @@ FORBIDDEN_SUFFIXES = (".safetensors", ".pth", ".ckpt", ".bin")
 GITIGNORED_PROBES = [
     "model/VOSR2/checkpoints/ema_model.safetensors",
     "data/history.db",
+    "data/history.db.bak-probe",
     "data/uploads/probe.png",
     "data/cache/thumbs/probe.jpg",
     "outputs/probe.png",
@@ -161,6 +162,8 @@ def check_forbidden(failures: list[str]) -> None:
             hits.append((path, "家族约定：本地治理文件不入库"))
         elif path in FORBIDDEN_PATTERNS:
             hits.append((path, "本地状态/密钥不得入库"))
+        elif path.startswith("data/") and ".db.bak-" in name:
+            hits.append((path, "本地数据库备份不得入库"))
         elif path.endswith(FORBIDDEN_SUFFIXES):
             hits.append((path, "模型权重不得入库"))
 

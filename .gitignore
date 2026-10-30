@@ -29,6 +29,8 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.db-journal
+# 运行时库备份（*.bak-<时间戳>）：本地排查用，不入库
+data/*.db.bak-*
 # 缩略图 / 格式转换缓存（可随时重建）
 data/cache/
 outputs/*
@@ -48,6 +50,8 @@ htmlcov/
 
 # ── 本地独享内容（不上远程）─────────────────────────────────────────────────
 local/
+# Qoder 本地审查产物（better-harness run 目录与证据）
+.qoder/
 docs/plans/
 docs/reports/
 docs/_devarchive/

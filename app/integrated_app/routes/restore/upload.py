@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 import time
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -25,7 +26,7 @@ from app.integrated_app.dependencies import (
     get_task_queue,
 )
 from app.integrated_app.engines.vosr2_engine import RestoreParams
-from app.integrated_app.exceptions import TaskQueueFullError
+from app.integrated_app.exceptions import InferenceCancelled, TaskQueueFullError
 from app.integrated_app.history_db import HistoryDB, HistoryRecord
 from app.integrated_app.model_manager import ModelManager
 from app.integrated_app.routes.restore import common
@@ -64,10 +65,18 @@ def get_outputs_dir() -> str:
     return path
 
 
-def _make_progress_cb(task_id: str, history_db: HistoryDB):
-    """引擎进度回调（推理线程调用）-> 线程安全地写 tasks 表。"""
+def _make_progress_cb(
+    task_id: str, history_db: HistoryDB, cancel_event: threading.Event | None = None
+):
+    """引擎进度回调（推理线程调用）-> 线程安全地写 tasks 表。
+
+    取消事件已置位时抛 InferenceCancelled，引擎的进度上报会把该异常原样透传，
+    从而在下一个采样步之前中止推理。
+    """
 
     def _cb(stage: str, ratio: float) -> None:
+        if cancel_event is not None and cancel_event.is_set():
+            raise InferenceCancelled(task_id)
         loop = _LOOP_HOLDER.get("loop")
         if loop is None or loop.is_closed():
             return
@@ -95,15 +104,23 @@ async def _run_restore_task(
     history_db: HistoryDB,
     model_manager: ModelManager,
     checkpoint: str,
+    cancel_event: threading.Event | None = None,
 ) -> None:
     """worker 中执行的实际推理协程（同步引擎调用放线程池）。"""
     from PIL import Image
 
+    if cancel_event is not None and cancel_event.is_set():
+        logger.info(f"任务在执行前已被取消，跳过: {task_id}")
+        return
+
     task_row = await history_db.get_task(task_id)
     record_id = task_row.get("record_id") if task_row else None
     started = time.monotonic()
+    out_path: str | None = None
 
     try:
+        if cancel_event is not None and cancel_event.is_set():
+            raise InferenceCancelled(task_id)
         await common.update_task_state(
             task_id,
             history_db,
@@ -114,7 +131,7 @@ async def _run_restore_task(
         )
 
         engine = model_manager.get_engine(checkpoint or None)
-        progress_cb = _make_progress_cb(task_id, history_db)
+        progress_cb = _make_progress_cb(task_id, history_db, cancel_event)
 
         def _run() -> str:
             with Image.open(input_path) as img:
@@ -138,6 +155,8 @@ async def _run_restore_task(
 
         loop = asyncio.get_running_loop()
         out_path = await loop.run_in_executor(None, _run)
+        if cancel_event is not None and cancel_event.is_set():
+            raise InferenceCancelled(task_id)
         size = os.path.getsize(out_path)
 
         elapsed = round(time.monotonic() - started, 2)
@@ -162,6 +181,24 @@ async def _run_restore_task(
                 processing_time=elapsed,
             )
         logger.info(f"任务完成: {task_id} -> {out_path}")
+
+    except InferenceCancelled:
+        logger.info(f"任务已取消: {task_id}")
+        if out_path and os.path.exists(out_path):
+            try:
+                os.remove(out_path)
+            except OSError:
+                pass
+        await common.update_task_state(
+            task_id,
+            history_db,
+            status="cancelled",
+            error="用户取消",
+            message="已取消",
+            finished_at=common.now_str(),
+        )
+        if record_id:
+            await history_db.update_record(record_id, status="cancelled", error="用户取消")
 
     except Exception as exc:
         logger.exception(f"任务失败: {task_id}")
@@ -242,12 +279,20 @@ async def upload_and_restore(
     await history_db.create_task(task_id, record_id, params_json=common.params_to_json(params))
 
     _LOOP_HOLDER["loop"] = asyncio.get_running_loop()
+    cancel_event = threading.Event()
     try:
         await task_queue.submit(
             task_id,
             lambda: _run_restore_task(
-                task_id, input_path, params, history_db, model_manager, checkpoint
+                task_id,
+                input_path,
+                params,
+                history_db,
+                model_manager,
+                checkpoint,
+                cancel_event,
             ),
+            on_cancel=cancel_event.set,
         )
     except TaskQueueFullError as exc:
         await history_db.update_record(record_id, status="failed", error=str(exc))

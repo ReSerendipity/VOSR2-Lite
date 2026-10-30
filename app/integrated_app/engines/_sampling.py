@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from app.integrated_app.engines._core import ProgressCb
+from app.integrated_app.exceptions import InferenceCancelled
 
 
 class SamplingMixin:
@@ -33,5 +34,7 @@ class SamplingMixin:
         if cb:
             try:
                 cb(stage, ratio)
+            except InferenceCancelled:
+                raise
             except Exception:
                 pass
