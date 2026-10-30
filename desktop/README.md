@@ -41,23 +41,42 @@ npm run dev                 # = tauri dev，会编译 Rust 并启动
 
 壳本身只产出 `VOSR2Lite.exe`（约 17 MB，含 Rust + WebView2 loader），**真正的分发体积在数据卷**：
 
-```bash
+```powershell
 # 1) 构建壳（产物：src-tauri/target/release/VOSR2Lite.exe）
 cd desktop && npm run build
 #    注意：直接用 cargo build --release 得到的是 vosr2lite-desktop.exe（Cargo 包名），
 #    tauri build 才会按 productName 重命名为 VOSR2Lite.exe；安装器脚本要求后者。
 
-# 2) 组装 app 目录（runtime/ + model/ + app/ 代码 + start_portable.py + version.json）
-#    3) 7z 分卷（单卷 ≤1900MB，GitHub 单文件 2GiB 硬限制内留余量）→ VOSR2Lite-Data.7z.001..
-#    4) 生成 SHA256SUMS
-# 5) 编译安装器（需 NSIS + 7-Zip）
+# 2) 数据卷 + 增量包（scripts/build_desktop_bundle.ps1）
+#    全量：自动下载 WinPython 3.12 → 装依赖（先非 torch，再 torch cu128）→ 组装 app/
+#          → 7z 分卷（单卷 ≤1900MB）→ SHA256SUMS / manifest.json / upload-list.txt
+powershell -ExecutionPolicy Bypass -File scripts\build_desktop_bundle.ps1
+#    只打增量包（约 0.5 MB，改代码发版用）：-SkipDataVolume
+#    已有准备好依赖的便携解释器：          -RuntimeDir D:\WPy64-312101 -SkipAutoPrepare -SkipDeps
+
+# 3) 编译安装器（需 NSIS + 7-Zip）
 cd scripts/installer
 makensis /DAPP_VERSION=<应用版本> -DSRC_7ZA="C:\Program Files\7-Zip\7z.exe" setup.nsi
 ```
 
+产物落在 `dist\desktop-release\`：
+
+| 文件 | 说明 |
+|---|---|
+| `VOSR2Lite-Data.7z.001..NNN` | 数据卷（根为 `app/`），必须与安装器同目录分发 |
+| `app-v<版本>.zip` + `.sha256` | 增量包（**zip 根即 `app/` 的内容**，不含 `app\` 外层包装） |
+| `SHA256SUMS.txt` / `manifest.json` / `upload-list.txt` | 校验清单与元信息 |
+
+两个易错点（脚本已固化，改动前先看 `build_desktop_bundle.ps1` 的注释）：
+
+- **数据卷归档根必须是 `app/`**——安装器把它解到 `$INSTDIR`，随后校验 `$INSTDIR\app\start_portable.py`。
+- **增量包归档根必须是 `app/` 的内容**——`updater.rs::extract_zip_with` 直接解到 `app.new/`，
+  多包一层 `app\` 会换载出 `app\app\app\integrated_app`，壳找不到启动脚本。
+
 实测（2026-10-30，Windows 11 / Rust 1.99.1）：壳 `17,209,344 B`（16.4 MiB）；安装器
-`4,032,621 B`（3.85 MiB，把 17.9 MB 载荷压到 22.4%）。数据卷取决于模型体积——
-本机 `model/` 为 12 GB，加上 torch 运行时约需 8 个 1900MB 分卷。
+`4,032,621 B`（3.85 MiB，把 17.9 MB 载荷压到 22.4%）；增量包 `app-v0.2.1.zip` 529.8 KB。
+数据卷取决于模型体积——本机 `model/` 为 12 GB（VOSR2 5.2G + VOSR_1.4B_ms 5.2G +
+Qwen-Image-vae-2d 171M + torch_cache 1.2G，末者默认排除），加上 torch 运行时约需 8 个 1900MB 分卷。
 
 安装器只内嵌壳与 `version.json`，数据卷里放旧基线；这样「壳更新」不需要重打数 GB 数据卷。
 

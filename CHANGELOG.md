@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   与 1900MB 分卷产物分离，换壳无需重打数据卷。
 - `scripts/check_shell_version.py` + `.github/workflows/desktop-shell.yml`：壳版本三处镜像、
   权限镜像完整性、`cargo clippy -D warnings` 与 `cargo test` 门禁。
+- `scripts/portable_bundle_lib.ps1` + `scripts/build_desktop_bundle.ps1`：桌面发布打包脚本
+  （WinPython 运行时准备 → 依赖安装 → 组装 `app/` → 7z 分卷 → SHA256SUMS / manifest）。
+  数据卷归档根为 `app/`（安装器解到 `$INSTDIR`），增量包归档根为 `app/` 的内容（壳直接解到 `app.new/`）。
 
 ### Changed
 
