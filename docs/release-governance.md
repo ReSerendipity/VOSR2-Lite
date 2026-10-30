@@ -4,7 +4,7 @@
 > 本文件是本仓本地化副本：公共条款（远端优先、tag 驱动、版本位一致、不可变标签、无 GPG；
 > 镜像类仓另有扫描阻断，本仓无镜像不适用）与 §10 保持一致，不自行改写；
 > 下文只列本仓特有项。
-> **收敛依据**：`RELEASE_GOVERNANCE_TEMPLATE.md`（`.github` 仓根目录）。
+> **收敛依据**：`ReSerendipity/.github` 的 `governance/templates/RELEASE_GOVERNANCE_TEMPLATE.md`（2026-10-30 自仓根迁入，旧根路径已失效）。
 
 ---
 
