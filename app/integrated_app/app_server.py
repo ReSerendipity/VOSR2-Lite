@@ -20,6 +20,7 @@ import os
 import sys
 import webbrowser
 from contextlib import asynccontextmanager
+from typing import Any
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
@@ -300,33 +301,79 @@ def find_available_port(start_port: int, max_attempts: int = 200) -> int:
     raise OSError(f"在 {start_port}~{start_port + max_attempts} 范围内未找到可用端口")
 
 
-def main() -> None:
+# 当前 uvicorn Server 句柄：桌面壳 POST /api/system/shutdown 时置 should_exit，
+# 走 uvicorn 正常退出流程（触发 lifespan 的队列停止 / 历史库关闭），而非 os._exit。
+# 仅守护模式（serve()）下非空；测试或外部 ASGI 托管时为 None。
+_SERVER: Any = None
+
+
+def request_shutdown() -> bool:
+    """请求本进程优雅关闭；返回是否已受理（无 Server 句柄时返回 False）。
+
+    仅置 flag，不阻塞：uvicorn 会在当前请求返回后结束事件循环并执行 lifespan 清理。
+    """
+    server = _SERVER
+    if server is None:
+        logger.warning("收到关闭请求，但当前无 uvicorn Server 句柄（非守护模式），忽略")
+        return False
+    logger.info("收到桌面壳关闭请求，开始优雅退出")
+    server.should_exit = True
+    return True
+
+
+def serve(app, host: str, port: int, log_level: str = "info") -> None:
+    """以 uvicorn.Server 守护方式运行（可被 request_shutdown 优雅终止）。"""
     import uvicorn
 
-    config = load_config()
-    host = config.get("server", {}).get("host", "127.0.0.1")
-    base_port = int(config.get("server", {}).get("port", 7871))
+    global _SERVER
+    config = uvicorn.Config(app, host=host, port=port, log_level=log_level, reload=False)
+    server = uvicorn.Server(config)
+    _SERVER = server
+    try:
+        server.run()
+    finally:
+        _SERVER = None
+
+
+def main(port: int | None = None, host: str | None = None, config_path: str | None = None) -> None:
+    """启动入口。
+
+    参数优先级：显式入参（桌面壳经 scripts/start_portable.py 传入）> config.yaml。
+    端口仍做占用顺延，避免用户手工开着的 7871 把桌面壳卡死在启动页。
+    """
+    import uvicorn  # noqa: F401  （保留模块可用性检查，尽早暴露缺失依赖）
+
+    config = load_config(config_path)
+    host = host or config.get("server", {}).get("host", "127.0.0.1")
+    base_port = int(port or config.get("server", {}).get("port", 7871))
     debug = bool(config.get("server", {}).get("debug", False))
 
-    port = find_available_port(base_port)
-    if port != base_port:
-        logger.warning(f"端口 {base_port} 已被占用，自动切换到 {port}")
-        config["server"]["port"] = port
-        origins = config["server"].setdefault("allowed_origins", [])
-        origin = f"http://{host}:{port}"
-        if origin not in origins:
-            origins.append(origin)
+    actual_port = find_available_port(base_port)
+    if actual_port != base_port:
+        logger.warning(f"端口 {base_port} 已被占用，自动切换到 {actual_port}")
+    config.setdefault("server", {})["port"] = actual_port
+    origins = config["server"].setdefault("allowed_origins", [])
+    origin = f"http://{host}:{actual_port}"
+    if origin not in origins:
+        origins.append(origin)
 
     setup_logging(config)
     app = create_app(config)
-    logger.info(f"VOSR2-Lite 启动中... http://{host}:{port}")
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        log_level=str(config.get("logging", {}).get("level", "INFO")).lower(),
-        reload=debug,
-    )
+    logger.info(f"VOSR2-Lite 启动中... http://{host}:{actual_port}")
+
+    if debug:
+        # reload 需要 import string 形式的 app，无法持有 Server 句柄（开发态不提供优雅关闭）
+        uvicorn.run(
+            "app.integrated_app.app_server:create_app",
+            factory=True,
+            host=host,
+            port=actual_port,
+            log_level=str(config.get("logging", {}).get("level", "INFO")).lower(),
+            reload=True,
+        )
+        return
+
+    serve(app, host, actual_port, str(config.get("logging", {}).get("level", "INFO")).lower())
 
 
 if __name__ == "__main__":

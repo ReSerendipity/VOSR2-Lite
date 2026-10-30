@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **桌面版（Tauri v2）**：新增 `desktop/` 原生壳（窗口 / 托盘 / 通知 / 单实例 / 崩溃自启 / 增量更新），
+  `scripts/start_portable.py` 便携启动器，以及 `POST /api/system/shutdown` 优雅关闭端点
+  （仅回环，走 uvicorn `should_exit` 触发 lifespan 清理）。壳版本 `1.0.0` 独立于应用版本，
+  最低兼容壳版本由 `version.json` 的 `minimum_shell_version` 声明。
+- `scripts/installer/setup.nsi`：NSIS 安装器（数据分卷解压 / 杀进程树 / 卸载重试），
+  与 1900MB 分卷产物分离，换壳无需重打数据卷。
+- `scripts/check_shell_version.py` + `.github/workflows/desktop-shell.yml`：壳版本三处镜像、
+  权限镜像完整性、`cargo clippy -D warnings` 与 `cargo test` 门禁。
+
+### Changed
+
+- `app_server.main()` 改为持有 `uvicorn.Server` 句柄（退出走正常 shutdown 流程），
+  新增 `serve()` 与 `request_shutdown()`；`--port/--host` 由便携启动器传入。
+
 ## [0.2.1] - 2026-10-28
 
 ### Fixed

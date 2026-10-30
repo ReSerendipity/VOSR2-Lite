@@ -36,6 +36,7 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 - **历史记录**：SQLite 持久化任务与缩略图，可分页回看、对比、下载、删除。
 - **效率细节**：参数预设本地保存、Ctrl+V 粘贴上传、输出尺寸与耗时预估、下载可选 PNG / JPEG / WebP、失败卡一键重试、快捷键（0/1/±/M/C）。
 - **多语言界面**：简体中文 / 繁體中文 / English；主题跟随系统，可手动切换。
+- **桌面版分发**：Tauri v2 壳（原生窗口 / 托盘 / 通知 / 单实例 / 增量更新）；壳与数据分卷解耦，换壳不重下模型。
 - **安全基线**：仅绑 `127.0.0.1`、CSP / 安全响应头、上传魔数校验、限流、路径白名单；可选 HTTP Basic Auth（含失败封禁）与 CSRF 双提交防护，默认关闭、`config.yaml` 开关控制。
 
 ### 展示
@@ -65,6 +66,18 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 **架构总览**：从浏览器模板到 FastAPI 路由 / 中间件 / 服务，再到按需懒加载的 VOSR 引擎与本地存储。
 
 ![架构总览](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-architecture.svg)
+
+### 桌面版（推荐普通用户）
+
+对外正式分发形态是 **Tauri v2 桌面版**：原生窗口 + 系统托盘 + 系统通知 + 单实例 + 崩溃自启，
+内置便携 Python 与权重，装完即用，不必自行配置 Python 环境。
+
+到 [Releases](https://github.com/ReSerendipity/VOSR2-Lite/releases) 下载
+`VOSR2Lite-Setup-v<版本>.exe` 与全部数据分卷（`VOSR2Lite-Data.7z.001` 起），**放在同一目录**后双击安装。
+壳与数据卷分离：应用代码以 `app-v<版本>.zip` 增量更新（约 1 MB），换壳不必重下数 GB 模型。
+
+壳只负责窗口/托盘/进程托管，业务仍是同一个 FastAPI 后端——桌面端与浏览器端共用一套代码。
+自行打包见 [`desktop/README.md`](desktop/README.md)；下面的源码流程适用于开发与 Linux 环境。
 
 ### 快速开始
 
@@ -211,6 +224,21 @@ VOSR2-Lite is a standalone image super-resolution toolkit built on [VOSR2](https
 **Architecture**: from browser templates through FastAPI routes / middleware / services down to the lazily-loaded VOSR engine and local storage.
 
 ![Architecture](https://gcore.jsdelivr.net/gh/ReSerendipity/VOSR2-Lite@main/docs/assets/readme-vosr2-lite-architecture.svg)
+
+### Desktop build (recommended for end users)
+
+The official distribution is a **Tauri v2 desktop build**: native window, system tray, native
+notifications, single-instance and crash auto-restart, with a bundled portable Python and weights.
+
+Download `VOSR2Lite-Setup-v<version>.exe` plus all data volumes (`VOSR2Lite-Data.7z.001` onwards)
+from [Releases](https://github.com/ReSerendipity/VOSR2-Lite/releases), keep them **in the same
+folder**, then run the installer. The shell and the data volumes are versioned separately: app code
+ships as an incremental `app-v<version>.zip` (~1 MB), so shell updates never re-download multi-GB weights.
+
+The shell only owns the window/tray/process supervision; business logic stays in the same FastAPI
+backend, so desktop and browser builds share one codebase. See
+[`desktop/README.md`](desktop/README.md) to build it yourself; the source workflow below targets
+development and Linux.
 
 ### Quick start
 

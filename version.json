@@ -1,5 +1,8 @@
 {
   "name": "VOSR2-Lite",
   "version": "0.2.1",
-  "channel": "stable"
+  "channel": "stable",
+  "release_date": "2026-10-30",
+  "minimum_shell_version": "1.0.0",
+  "changelog": "接入 Tauri v2 桌面壳（desktop/src-tauri，壳版本 1.0.0）：原生窗口/托盘/系统通知/单实例/崩溃自启/增量更新；新增 POST /api/system/shutdown 优雅关闭端点与 scripts/start_portable.py 便携启动器；壳侧自适应 CSRF（启用时走 double-submit，关闭时裸 POST）。"
 }

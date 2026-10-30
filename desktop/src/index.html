@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOSR2 Lite 启动中</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; }
+    body {
+      display: flex; flex-direction: column;
+      background:
+        radial-gradient(1100px 480px at 50% -12%, rgba(79,140,255,0.16) 0%, rgba(79,140,255,0) 60%),
+        linear-gradient(180deg, #1f232b 0%, #181b22 46%, #14161c 100%);
+      color: rgba(232,236,244,0.92);
+      font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+    /* 顶栏：可拖拽标题栏 + 窗口控制（与主界面风格一致） */
+    .winbar {
+      height: 38px; flex: 0 0 38px;
+      display: flex; align-items: center;
+      padding: 0 6px 0 14px;
+      -webkit-app-region: drag;
+      app-region: drag;
+    }
+    .winbar-brand {
+      font-size: 12px; letter-spacing: 1.5px;
+      color: rgba(232,236,244,0.45);
+      font-weight: 600;
+    }
+    .win-controls { margin-left: auto; display: flex; gap: 2px; -webkit-app-region: no-drag; app-region: no-drag; }
+    .win-btn {
+      width: 36px; height: 30px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: none; background: transparent; color: rgba(232,236,244,0.72);
+      border-radius: 6px; cursor: pointer; font-size: 14px;
+      transition: background .15s ease, color .15s ease;
+    }
+    .win-btn:hover { background: #333a46; color: #fff; }
+    .win-btn-close:hover { background: #e0554a; color: #fff; }
+    /* 主内容区 */
+    .main {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding-bottom: 46px;
+    }
+    .logo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .logo-mark {
+      width: 52px; height: 52px; border-radius: 13px;
+      background: linear-gradient(145deg, #4f8cff 0%, #26c6da 100%);
+      box-shadow: 0 6px 22px rgba(38,98,180,0.38), inset 0 1px 0 rgba(255,255,255,0.18);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-mark span {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 28px; font-weight: 700;
+      color: #f7fbff; margin-top: 1px;
+    }
+    .logo-text {
+      font-size: 30px; font-weight: 600; letter-spacing: 1px;
+      color: rgba(244,246,250,0.96);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+    .subtitle {
+      font-size: 13px; color: rgba(232,236,244,0.48);
+      letter-spacing: 0.5px; margin-bottom: 34px;
+    }
+    .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid rgba(79,140,255,0.18);
+      border-top-color: #4f8cff;
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+      margin-bottom: 22px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status { font-size: 13px; color: rgba(232,236,244,0.66); min-height: 20px; }
+    .error {
+      color: #e08b80; margin-top: 14px;
+      font-size: 12.5px; max-width: 420px;
+      text-align: center; line-height: 1.7; white-space: pre-wrap;
+    }
+    .btn {
+      margin-top: 18px; padding: 8px 26px;
+      background: #2f6bd8; color: #f7fbff;
+      border: none; border-radius: 7px;
+      cursor: pointer; font-size: 13px; font-family: inherit;
+      transition: background .15s ease;
+    }
+    .btn:hover { background: #4f8cff; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="winbar" data-tauri-drag-region>
+    <div class="winbar-brand">VOSR2 LITE</div>
+    <div class="win-controls" id="winControls">
+      <button class="win-btn" id="winMinimize" title="最小化" aria-label="最小化">&#x2212;</button>
+      <button class="win-btn" id="winMaximize" title="最大化" aria-label="最大化">&#x25A1;</button>
+      <button class="win-btn win-btn-close" id="winClose" title="关闭" aria-label="关闭">&#x2715;</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="logo-row">
+      <div class="logo-mark"><span>V</span></div>
+      <div class="logo-text">VOSR2 Lite</div>
+    </div>
+    <div class="subtitle">AI 图像超分修复 · 桌面版</div>
+    <div class="spinner" id="spinner"></div>
+    <div class="status" id="status">正在启动 Python 运行时...</div>
+    <div class="error hidden" id="error"></div>
+    <button class="btn hidden" id="retryBtn">重试</button>
+  </div>
+
+  <script>
+    (function () {
+      var I = window.__TAURI_INTERNALS__;
+      var T = window.__TAURI__;
+      // 统一 invoke：withGlobalTauri 下走 __TAURI__.core.invoke，否则走内核通道
+      function invoke(cmd, args) {
+        try {
+          if (T && T.core && T.core.invoke) return T.core.invoke(cmd, args);
+          if (I && I.invoke) return I.invoke(cmd, args || {});
+        } catch (e) { /* 浏览器模式：忽略 */ }
+        return Promise.resolve();
+      }
+      window.__vosr2Invoke = invoke;
+
+      var isTauri = !!(I || T);
+      var ctl = document.getElementById('winControls');
+      if (!isTauri || !ctl) { ctl && (ctl.style.display = 'none'); return; }
+
+      document.getElementById('winMinimize').addEventListener('click', function () { invoke('window_minimize'); });
+      var maxBtn = document.getElementById('winMaximize');
+      function syncMax() {
+        var r = invoke('window_is_maximized');
+        if (r && r.then) r.then(function (m) {
+          if (!maxBtn) return;
+          maxBtn.innerHTML = m ? '&#x29C9;' : '&#x25A1;';
+          maxBtn.title = m ? '向下还原' : '最大化';
+        }).catch(function () {});
+      }
+      function toggleMax() { invoke('window_maximize_toggle'); setTimeout(syncMax, 160); }
+      if (maxBtn) maxBtn.addEventListener('click', toggleMax);
+      document.getElementById('winClose').addEventListener('click', function () {
+        // 与系统 X 同语义：由 Rust 按 close_to_tray 配置决定隐藏托盘或退出
+        var r = invoke('window_request_close');
+        if (!r || !r.catch) invoke('window_close');
+        else r.catch(function () { invoke('window_close'); });
+      });
+      var winbar = document.querySelector('.winbar');
+      if (winbar) {
+        winbar.addEventListener('dblclick', function (e) {
+          if (e.target === winbar || e.target.classList.contains('winbar-brand')) toggleMax();
+        });
+        winbar.addEventListener('pointerdown', function (e) {
+          if (e.button !== 0) return;
+          if (e.target !== winbar && !e.target.classList.contains('winbar-brand')) return;
+          invoke('window_start_dragging');
+        });
+      }
+      syncMax();
+
+      document.getElementById('retryBtn').addEventListener('click', function () { invoke('retry_start'); });
+
+      // 监听来自 Rust 壳的启动状态
+      var listen = (T && T.event && T.event.listen)
+        ? T.event.listen
+        : (I && I.invoke ? function (name, cb) {
+            return I.invoke('plugin:event|listen', {
+              event: name,
+              target: { kind: 'Any' },
+              handler: cb
+            });
+          } : null);
+      if (listen) {
+        listen('startup-status', function (event) {
+          var data = (event && event.payload) || {};
+          var statusEl = document.getElementById('status');
+          if (statusEl) statusEl.textContent = data.message || '';
+          if (data.error) {
+            document.getElementById('spinner').classList.add('hidden');
+            document.getElementById('error').textContent = data.error;
+            document.getElementById('error').classList.remove('hidden');
+            document.getElementById('retryBtn').classList.remove('hidden');
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
