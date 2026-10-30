@@ -22,9 +22,13 @@
 #     data\ outputs\ logs\ 运行态目录（增量更新时整体保留）
 #
 # 用法：
-#   .\scripts\build_desktop_bundle.ps1                                  # 全量（含运行时准备与装依赖）
-#   .\scripts\build_desktop_bundle.ps1 -SkipIncremental                 # 只打数据卷
-#   .\scripts\build_desktop_bundle.ps1 -SkipDataVolume                  # 只打增量包
+#   .\scripts\build_desktop_bundle.ps1                       # 瘦包（默认）：壳 + 代码 + 引导解释器
+#   .\scripts\build_desktop_bundle.ps1 -Mode runtime         # 环境包：torch cu128 wheels + 下载清单
+#   .\scripts\build_desktop_bundle.ps1 -Mode all             # 两者都建（发版用）
+#   .\scripts\build_desktop_bundle.ps1 -SkipIncremental      # 不单独打增量包
+#
+# 瘦包不含量化权重与 torch：这两样由程序内「下载管理」页按需安装
+# （页面 = /downloads，执行层 = app/integrated_app/download_service.py）。
 #   .\scripts\build_desktop_bundle.ps1 -RuntimeDir D:\WPy64-312101 -SkipAutoPrepare -SkipDeps
 
 [CmdletBinding()]
@@ -33,6 +37,12 @@ param(
     [string]$Root = '',
     [string]$OutDir = '',
     [string]$StagingDir = '',
+
+    # 构建模式（瘦包方案：安装包不再带环境与模型，改由程序内下载管理页按需获取）
+    #   slim    瘦包：壳 + 应用代码 + 引导解释器（app/bootstrap/，仅 Web 依赖、无 torch）
+    #   runtime 环境包：torch/torchvision 的 cu128 wheels，zip 分卷 + 生成下载清单
+    #   all     两者都建（发版用）
+    [ValidateSet('slim', 'runtime', 'all')][string]$Mode = 'slim',
 
     # 便携解释器：给 -RuntimeDir 时直接用（须含 python.exe）；否则自动下载 WinPython 并装依赖
     [string]$RuntimeDir = '',
@@ -71,6 +81,14 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------- 常量 ----
 $DataArchiveName = 'VOSR2Lite-Data.7z'
 $PayloadAppName = 'app'
+# 瘦包内置解释器目录名（无 torch）。环境装进去后目录名不变，只多出 torch——
+# 与壳 python_process.rs 的 detect_python_mode 及后端 _runtime_dir() 三处必须一致。
+$BootstrapDirName = 'bootstrap'
+$RuntimeDirName = 'runtime'
+# 环境包（torch wheels）产物名与 Release tag
+$RuntimeZipName = 'VOSR2Lite-Runtime-cu128.zip'
+$RuntimeDefaultTag = 'runtime-v1'
+$CatalogFileName = 'downloads_catalog.json'
 
 # 应用代码：随增量包与数据卷一起分发
 $CodeIncludeDirs = @('app', 'vosr')
@@ -184,7 +202,9 @@ function Install-Vosr2RuntimeDeps {
     #>
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
-        [Parameter(Mandatory = $true)][string]$ProjectRoot
+        [Parameter(Mandatory = $true)][string]$ProjectRoot,
+        # 只装 Web 依赖（瘦包的引导解释器用）：装完能跑 FastAPI 与下载管理页，但没有 torch
+        [switch]$WebOnly
     )
     $reqSrc = Join-Path $ProjectRoot 'requirements.txt'
     if (-not (Test-Path -LiteralPath $reqSrc)) {
@@ -205,6 +225,12 @@ function Install-Vosr2RuntimeDeps {
     $r = Invoke-Vosr2Native -Exe $PythonExe -Arguments @('-m', 'pip', 'install', '-r', $reqNoTorch, '--no-warn-script-location')
     if ($r.ExitCode -ne 0) {
         throw "安装非 torch 依赖失败（退出码 $($r.ExitCode)）：`n$($r.Text)"
+    }
+
+    if ($WebOnly) {
+        Write-Host "  仅 Web 依赖模式：跳过 torch（引导解释器不需要，环境由程序内下载页安装）"
+        Remove-Item -LiteralPath $reqNoTorch -Force -ErrorAction SilentlyContinue
+        return
     }
 
     Write-Host "  安装 torch $TorchVersion + torchvision $TorchvisionVersion（$TorchIndexUrl）..."
@@ -235,6 +261,86 @@ function Test-Vosr2RuntimeTorch {
     return $true
 }
 
+function Get-Vosr2CudaTag {
+    <# 从 --index-url 里取 CUDA 标签（https://download.pytorch.org/whl/cu128 → cu128）。 #>
+    if ($TorchIndexUrl -match '/whl/([^/]+)/?$') {
+        return $Matches[1]
+    }
+    return 'cpu'
+}
+
+function Start-Vosr2WheelDownload {
+    <#
+        把 torch/torchvision 及其依赖的 wheel 下载到 $WheelDir，作为「环境包」分发。
+        必须带依赖（不加 --no-deps）：离线安装时 nvidia-* 等依赖也要能就地取到。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$WheelDir
+    )
+    if (Test-Path -LiteralPath $WheelDir) {
+        Remove-Vosr2TreeFast -Path $WheelDir
+    }
+    New-Item -ItemType Directory -Path $WheelDir -Force | Out-Null
+    Write-Host "  下载 torch wheels：$TorchIndexUrl"
+    $prevCfg = $env:PIP_CONFIG_FILE
+    $env:PIP_CONFIG_FILE = 'NUL'
+    try {
+        $r = Invoke-Vosr2Native -Exe $PythonExe -Arguments @('-m', 'pip', 'download',
+            "torch==$TorchVersion", "torchvision==$TorchvisionVersion",
+            '--index-url', $TorchIndexUrl, '-d', $WheelDir)
+    } finally {
+        $env:PIP_CONFIG_FILE = $prevCfg
+    }
+    if ($r.ExitCode -ne 0) {
+        throw "下载 torch wheels 失败（退出码 $($r.ExitCode)）：$($r.Text)"
+    }
+    $count = @(Get-ChildItem -LiteralPath $WheelDir -File -Filter '*.whl').Count
+    if ($count -eq 0) {
+        throw "wheels 目录为空：$WheelDir"
+    }
+    Write-Host "  下载完成：$count 个 wheel"
+}
+
+function Write-Vosr2Catalog {
+    <#
+        生成 app/downloads_catalog.json——程序内下载管理页按它找环境包。
+        清单随应用分发（离线也能展示），所以环境包换版本时必须同步更新本文件并发新版。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$OutFile,
+        [Parameter(Mandatory = $true)][string]$AppVersion,
+        [string]$PythonVersion = '',
+        [string]$RuntimeVersion = '1',
+        [string]$Tag = $RuntimeDefaultTag,
+        [string]$BaseUrl = '',
+        [object[]]$Volumes = @(),
+        [long]$TotalBytes = 0
+    )
+    $cuda = Get-Vosr2CudaTag
+    $catalog = [ordered]@{
+        runtime = [ordered]@{
+            version          = $RuntimeVersion
+            tag              = $Tag
+            base_url         = if ($BaseUrl) { $BaseUrl } else { "$DEFAULT_RELEASE_BASE/$Tag" }
+            python           = $PythonVersion
+            torch            = "$TorchVersion+$cuda"
+            cuda             = $cuda
+            packages         = @("torch==$TorchVersion", "torchvision==$TorchvisionVersion")
+            size_bytes       = [long]$TotalBytes
+            built_at         = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            min_app_version  = $AppVersion
+            volumes          = @(
+                foreach ($v in $Volumes) {
+                    [ordered]@{ name = $v.Name; size = [long]$v.Bytes; sha256 = $v.Sha256 }
+                }
+            )
+        }
+    }
+    Write-Vosr2Json -Object $catalog -Path $OutFile
+    Write-Host "  清单：$OutFile"
+}
+
 # ------------------------------------------------------------ 载荷组装 ----
 function New-Vosr2AppPayload {
     <#
@@ -248,7 +354,11 @@ function New-Vosr2AppPayload {
         [Parameter(Mandatory = $true)][bool]$WithHeavy,
         [string]$Runtime,
         [string]$ModelDirectory,
-        [string[]]$ModelSubDirs
+        [string[]]$ModelSubDirs,
+        # 解释器落到 app/ 下的目录名：完整运行时 runtime/、瘦包引导解释器 bootstrap/
+        [string]$RuntimeDestName = 'runtime',
+        # 瘦包不带权重；模型改由程序内下载管理页按需获取
+        [bool]$WithModels = $true
     )
     $appDir = Join-Path $PayloadDir $PayloadAppName
     New-Item -ItemType Directory -Path $appDir -Force | Out-Null
@@ -303,12 +413,12 @@ function New-Vosr2AppPayload {
             throw "数据卷需要便携运行时：请提供 -RuntimeDir 或去掉 -SkipAutoPrepare"
         }
         $pyInfo = Resolve-Vosr2RuntimeRoot -Path $Runtime
-        $st = Copy-Vosr2Tree -Source $pyInfo.PythonDir -Dest (Join-Path $appDir 'runtime') `
+        $st = Copy-Vosr2Tree -Source $pyInfo.PythonDir -Dest (Join-Path $appDir $RuntimeDestName) `
             -ExcludePatterns @('pip-log.txt', '*.typecheck.log', 'WINPYTHON_*', 'notebooks\*')
-        Write-Host ("    · {0,-10} {1,6} 文件 / {2}" -f 'runtime', $st.Files, (Format-Vosr2Size $st.Bytes))
+        Write-Host ("    · {0,-10} {1,6} 文件 / {2}" -f $RuntimeDestName, $st.Files, (Format-Vosr2Size $st.Bytes))
         $files += $st.Files; $bytes += $st.Bytes
 
-        if ($ModelDirectory -and (Test-Path -LiteralPath $ModelDirectory)) {
+        if ($WithModels -and $ModelDirectory -and (Test-Path -LiteralPath $ModelDirectory)) {
             foreach ($sub in $ModelSubDirs) {
                 $src = Join-Path $ModelDirectory $sub
                 if (-not (Test-Path -LiteralPath $src)) {
@@ -334,11 +444,12 @@ function New-Vosr2AppPayload {
 function Assert-Vosr2PayloadLayout {
     param(
         [Parameter(Mandatory = $true)][string]$AppDir,
-        [Parameter(Mandatory = $true)][bool]$WithHeavy
+        [Parameter(Mandatory = $true)][bool]$WithHeavy,
+        [string]$RuntimeDestName = 'runtime'
     )
     $must = @('start_portable.py', 'version.json')
     if ($WithHeavy) {
-        $must += @('config.yaml', 'runtime\python.exe', 'app\integrated_app\app_server.py')
+        $must += @('config.yaml', "$RuntimeDestName\python.exe", 'app\integrated_app\app_server.py')
     }
     foreach ($rel in $must) {
         $p = Join-Path $AppDir $rel
@@ -387,9 +498,14 @@ if ($ModelDirs.Count -eq 0) {
 Write-Host " 模型目录：$($ModelDirs -join ', ')"
 
 # -------------------------------------------------------- 运行时准备 ----
-$needRuntime = -not $SkipDataVolume
+$buildSlim = ($Mode -eq 'slim' -or $Mode -eq 'all')
+$buildRuntime = ($Mode -eq 'runtime' -or $Mode -eq 'all')
+# 兼容旧开关：显式 -SkipDataVolume 时不再建数据卷
+if ($SkipDataVolume) { $buildSlim = $false }
+
+$needRuntime = $buildSlim
 if ($needRuntime -and -not $RuntimeDir -and $SkipAutoPrepare) {
-    throw "数据卷需要便携运行时：请提供 -RuntimeDir，或去掉 -SkipAutoPrepare 让脚本自动下载 WinPython"
+    throw "瘦包需要引导解释器：请提供 -RuntimeDir，或去掉 -SkipAutoPrepare 让脚本自动下载 WinPython"
 }
 if ($needRuntime -and -not $RuntimeDir) {
     $prepDir = Join-Path $StagingDir '_prepare'
@@ -401,9 +517,8 @@ if ($needRuntime -and -not $RuntimeDir) {
 }
 if ($needRuntime -and -not $SkipDeps -and $RuntimeDir) {
     $pyInfo = Resolve-Vosr2RuntimeRoot -Path $RuntimeDir
-    Write-Host "`n[准备] 安装运行依赖"
-    Install-Vosr2RuntimeDeps -PythonExe $pyInfo.PythonExe -ProjectRoot $Root
-    Test-Vosr2RuntimeTorch -PythonExe $pyInfo.PythonExe | Out-Null
+    Write-Host "`n[准备] 安装引导解释器依赖（仅 Web 依赖，不含 torch）"
+    Install-Vosr2RuntimeDeps -PythonExe $pyInfo.PythonExe -ProjectRoot $Root -WebOnly
 }
 
 # -------------------------------------------------------- 磁盘预检 ----
@@ -459,14 +574,15 @@ if (-not $SkipIncremental) {
 }
 
 # ---------------------------------------------------------- 数据卷 ----
-if (-not $SkipDataVolume) {
-    Write-Host "`n[数据卷] 应用 + 便携运行时 + 模型" -ForegroundColor Yellow
+if ($buildSlim) {
+    Write-Host "`n[瘦包] 应用代码 + 引导解释器（不含模型）" -ForegroundColor Yellow
     $dataPayload = Join-Path $StagingDir 'data-payload'
     Remove-Vosr2TreeFast -Path $dataPayload
     New-Item -ItemType Directory -Path $dataPayload -Force | Out-Null
     $built = New-Vosr2AppPayload -PayloadDir $dataPayload -ProjectRoot $Root -Ver $Version -WithHeavy $true `
-        -Runtime $RuntimeDir -ModelDirectory $ModelDir -ModelSubDirs $ModelDirs
-    Assert-Vosr2PayloadLayout -AppDir $built.AppDir -WithHeavy $true
+        -Runtime $RuntimeDir -ModelDirectory $ModelDir -ModelSubDirs $ModelDirs `
+        -RuntimeDestName $BootstrapDirName -WithModels $false
+    Assert-Vosr2PayloadLayout -AppDir $built.AppDir -WithHeavy $true -RuntimeDestName $BootstrapDirName
     Assert-Vosr2NoForbiddenPayload -Path $dataPayload
     Write-Host ("  载荷：{0} 文件 / {1}（未压缩）" -f $built.Files, (Format-Vosr2Size $built.Bytes))
 
@@ -486,6 +602,47 @@ if (-not $SkipDataVolume) {
         Remove-Item -LiteralPath $arc.Path -Force -ErrorAction SilentlyContinue
     }
     Remove-Vosr2TreeFast -Path $dataPayload
+}
+
+# ---------------------------------------------------------- 环境包 ----
+if ($buildRuntime) {
+    Write-Host "`n[环境包] torch wheels（$TorchIndexUrl）" -ForegroundColor Yellow
+    # pip download 只取 wheel、不安装，故用哪个解释器都行；优先复用已准备的便携解释器
+    $dlPython = 'python'
+    if ($RuntimeDir -and (Test-Path -LiteralPath $RuntimeDir)) {
+        $dlInfo = Resolve-Vosr2RuntimeRoot -Path $RuntimeDir
+        if ($dlInfo.PythonExe -and (Test-Path -LiteralPath $dlInfo.PythonExe)) {
+            $dlPython = $dlInfo.PythonExe
+        }
+    }
+    $verRes = Invoke-Vosr2Native -Exe $dlPython -Arguments @('-c', 'import sys;print(sys.version.split()[0])')
+    $pyVer = if ($verRes.ExitCode -eq 0) { $verRes.Text.Trim() } else { '' }
+    Write-Host "  下载用解释器：$dlPython（Python $pyVer）"
+
+    $wheelDir = Join-Path $StagingDir 'wheels'
+    Start-Vosr2WheelDownload -PythonExe $dlPython -WheelDir $wheelDir
+
+    # zip 打包（Level 0：wheel 本身已是压缩格式，再压收益极低但很慢）
+    $zipBase = Join-Path $StagingDir $RuntimeZipName
+    $rtArc = New-Vosr2Archive -SourceDir $wheelDir -OutFile $zipBase -Format zip -Level 0
+    Write-Host ("  归档：{0} → {1}" -f $rtArc.Format, (Format-Vosr2Size $rtArc.Bytes))
+
+    $rtVols = @(Split-Vosr2FileIntoVolumes -File $rtArc.Path -MaxBytes $MaxPartBytes)
+    foreach ($v in $rtVols) {
+        $target = Join-Path $OutDir $v.Name
+        Move-Item -LiteralPath $v.Path -Destination $target -Force
+        $upload += $target
+        Write-Host ("    卷 {0}/{1}：{2}  {3}" -f $v.Index, $rtVols.Count, (Format-Vosr2Size $v.Bytes), $v.Name)
+    }
+    if (-not $KeepArchive) {
+        Remove-Item -LiteralPath $rtArc.Path -Force -ErrorAction SilentlyContinue
+    }
+
+    # 清单随应用分发（app/downloads_catalog.json），环境包换版必须同步发新版应用
+    Write-Vosr2Catalog -OutFile (Join-Path $OutDir $CatalogFileName) -AppVersion $Version `
+        -PythonVersion $pyVer -Volumes $rtVols -TotalBytes $rtArc.Bytes
+    $upload += (Join-Path $OutDir $CatalogFileName)
+    Remove-Vosr2TreeFast -Path $wheelDir
 }
 
 # ------------------------------------------------------ SHA256SUMS ----
