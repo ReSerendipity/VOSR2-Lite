@@ -333,7 +333,19 @@ pub fn detect_python_mode(app_dir: &Path) -> PythonMode {
     if app_dir.join("runtime").join("python.exe").exists() {
         return PythonMode::Full;
     }
-    if app_dir.join("bootstrap").join("python.exe").exists() {
+    let bootstrap = app_dir.join("bootstrap");
+    if bootstrap.join("python.exe").exists() {
+        // 环境包装的就是 torch wheels，安装时装进 bootstrap 自身的 site-packages，
+        // 不另起一份解释器——所以装完后 bootstrap 目录名字没变，但已经是完整运行时。
+        // 靠 torch 包目录判定，比启动子进程 import torch（数秒）便宜得多。
+        if bootstrap
+            .join("Lib")
+            .join("site-packages")
+            .join("torch")
+            .exists()
+        {
+            return PythonMode::Full;
+        }
         return PythonMode::Bootstrap;
     }
     PythonMode::Dev
@@ -465,6 +477,17 @@ mod tests {
         assert_eq!(detect_python_mode(&app), PythonMode::Bootstrap);
         // 引导态必须落到下载管理页，否则用户看到的只是个跑不了推理的空壳
         assert_eq!(startup_entry(PythonMode::Bootstrap), "downloads");
+        let _ = std::fs::remove_dir_all(&app);
+    }
+
+    #[test]
+    fn mode_is_full_when_bootstrap_already_has_torch() {
+        let app = make_app_dir("boot-torch", Some("bootstrap"));
+        // 环境包装进 bootstrap 自身后目录名不变，靠 site-packages/torch 判定
+        let site = app.join("bootstrap").join("Lib").join("site-packages").join("torch");
+        std::fs::create_dir_all(&site).unwrap();
+        assert_eq!(detect_python_mode(&app), PythonMode::Full);
+        assert_eq!(startup_entry(detect_python_mode(&app)), "");
         let _ = std::fs::remove_dir_all(&app);
     }
 

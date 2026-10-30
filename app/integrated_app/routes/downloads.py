@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from app.integrated_app.config import PROJECT_ROOT
 from app.integrated_app.dependencies import get_config
 from app.integrated_app.download_service import (
+    _runtime_dir,
     catalog_view,
     get_download_manager,
     uninstall_model,
@@ -104,7 +105,7 @@ def _dir_stats(path: str) -> tuple[int, int]:
 
 
 def _read_runtime_meta() -> dict | None:
-    meta_path = os.path.join(PROJECT_ROOT, RUNTIME_DIRNAME, RUNTIME_META_NAME)
+    meta_path = os.path.join(_runtime_dir(), RUNTIME_META_NAME)
     if not os.path.isfile(meta_path):
         return None
     try:
@@ -150,7 +151,7 @@ def _version_ge(actual: str | None, required: str | None) -> bool:
 
 
 def build_runtime_status() -> dict:
-    runtime_dir = os.path.join(PROJECT_ROOT, RUNTIME_DIRNAME)
+    runtime_dir = _runtime_dir()
     exe = os.path.join(runtime_dir, _exe_name())
     meta = _read_runtime_meta() or {}
     present = os.path.isfile(exe)

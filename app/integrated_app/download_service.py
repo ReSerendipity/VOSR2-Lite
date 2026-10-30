@@ -25,6 +25,8 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -37,6 +39,8 @@ from app.integrated_app.version import get_app_version
 
 # ---------------------------------------------------------------- 目录 ----
 RUNTIME_DIRNAME = "runtime"
+# 瘦包内置的解释器目录名（无 torch）。环境装进去后目录名不变，只多出 torch。
+BOOTSTRAP_DIRNAME = "bootstrap"
 CATALOG_FILENAME = "downloads_catalog.json"
 RUNTIME_META_NAME = "RUNTIME.json"
 
@@ -46,8 +50,28 @@ DEFAULT_RELEASE_BASE = "https://github.com/ReSerendipity/VOSR2-Lite/releases/dow
 ProgressCb = Callable[[str, float, str], None]  # (stage, ratio 0..1, message)
 
 
+def _exe_name() -> str:
+    return "python.exe" if os.name == "nt" else "python"
+
+
 def _runtime_dir() -> str:
-    return os.path.join(PROJECT_ROOT, RUNTIME_DIRNAME)
+    """当前生效的运行时目录。
+
+    瘦包里解释器叫 `bootstrap/`，环境装进去后**目录名不变**（只多了 torch），
+    所以不能只看 runtime/；两个都可能有 python.exe，优先 runtime/。
+    """
+    runtime = os.path.join(PROJECT_ROOT, RUNTIME_DIRNAME)
+    if os.path.isfile(os.path.join(runtime, _exe_name())):
+        return runtime
+    bootstrap = os.path.join(PROJECT_ROOT, BOOTSTRAP_DIRNAME)
+    if os.path.isfile(os.path.join(bootstrap, _exe_name())):
+        return bootstrap
+    return runtime
+
+
+def _python_dir() -> str:
+    """当前进程的解释器所在目录（环境就装进这里）。"""
+    return os.path.dirname(os.path.abspath(sys.executable or "")) or _runtime_dir()
 
 
 def _catalog_path() -> str:
@@ -156,7 +180,6 @@ def install_runtime(
     base = str(
         catalog.get("base_url") or f"{DEFAULT_RELEASE_BASE}/{catalog.get('tag', 'runtime-v1')}"
     )
-    runtime_dir = _runtime_dir()
     staging_parent = os.path.join(PROJECT_ROOT, ".downloads")
     work = os.path.join(staging_parent, "runtime")
     os.makedirs(work, exist_ok=True)
@@ -205,34 +228,41 @@ def install_runtime(
                 with open(part, "rb") as handle:
                     shutil.copyfileobj(handle, out, 1024 * 1024)
 
-    # 3) 解压到临时目录，成功后再换载（失败不留半个 runtime/）
+    # 3) 解压 wheels 到临时目录
     report("extract", 0.0, "解压环境包")
-    unpacked = os.path.join(work, "unpacked")
-    if os.path.isdir(unpacked):
-        shutil.rmtree(unpacked, ignore_errors=True)
-    os.makedirs(unpacked, exist_ok=True)
+    wheels = os.path.join(work, "wheels")
+    if os.path.isdir(wheels):
+        shutil.rmtree(wheels, ignore_errors=True)
+    os.makedirs(wheels, exist_ok=True)
     with zipfile.ZipFile(archive) as zf:
-        zf.extractall(unpacked)
+        zf.extractall(wheels)
 
-    # 归档根可能是 runtime/ 本身，也可能是其内容；两种都兼容
-    inner = os.path.join(unpacked, RUNTIME_DIRNAME)
-    source = inner if os.path.isdir(inner) else unpacked
+    # 4) 离线装入当前解释器（--no-index + --find-links，全程不联网）。
+    #    装进 bootstrap/ 自身、不另起一份解释器：目录名不变，壳靠
+    #    bootstrap/Lib/site-packages/torch 判定它已经是完整运行时。
+    report("swap", 0.5, "安装 torch（离线）")
+    target = _python_dir()
+    packages = [str(p) for p in (catalog.get("packages") or []) if p] or ["torch", "torchvision"]
+    command = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--no-index",
+        "--find-links",
+        wheels,
+        "--no-warn-script-location",
+        *packages,
+    ]
+    # PIP_CONFIG_FILE=NUL：屏蔽用户 pip 配置里的 extra-index-url（国内镜像常见）。
+    # --no-index 本已禁索引，但显式隔离可避免配置注入引入意外来源。
+    env = dict(os.environ, PIP_CONFIG_FILE="NUL")
+    result = subprocess.run(command, capture_output=True, text=True, cwd=PROJECT_ROOT, env=env)
+    if result.returncode != 0:
+        tail = (result.stderr or result.stdout or "")[-400:]
+        raise RuntimeError(f"torch 离线安装失败（退出码 {result.returncode}）：{tail}")
 
-    report("swap", 0.5, "换载运行时")
-    target = runtime_dir
-    backup = target + ".old"
-    if os.path.isdir(backup):
-        shutil.rmtree(backup, ignore_errors=True)
-    if os.path.isdir(target):
-        os.rename(target, backup)
-    try:
-        shutil.move(source, target)
-    except Exception:
-        if os.path.isdir(backup):
-            os.rename(backup, target)
-        raise
-
-    # 4) 落地元信息（status API 读它判断 torch/CUDA 版本，避免启动时 import torch）
+    # 5) 落地元信息（status API 读它判断 torch/CUDA 版本，避免启动时 import torch）
     meta = {
         "runtime_version": str(catalog.get("version", "1")),
         "python": catalog.get("python"),
@@ -246,7 +276,6 @@ def install_runtime(
     with open(os.path.join(target, RUNTIME_META_NAME), "w", encoding="utf-8") as meta_handle:
         json.dump(meta, meta_handle, ensure_ascii=False, indent=2)
 
-    shutil.rmtree(backup, ignore_errors=True)
     shutil.rmtree(work, ignore_errors=True)
     report("done", 1.0, "环境安装完成，请重启应用")
     return meta
