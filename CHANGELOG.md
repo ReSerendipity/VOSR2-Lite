@@ -17,14 +17,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   与 1900MB 分卷产物分离，换壳无需重打数据卷。
 - `scripts/check_shell_version.py` + `.github/workflows/desktop-shell.yml`：壳版本三处镜像、
   权限镜像完整性、`cargo clippy -D warnings` 与 `cargo test` 门禁。
-- `scripts/portable_bundle_lib.ps1` + `scripts/build_desktop_bundle.ps1`：桌面发布打包脚本
-  （WinPython 运行时准备 → 依赖安装 → 组装 `app/` → 7z 分卷 → SHA256SUMS / manifest）。
+- `scripts/portable_bundle_lib.ps1` + `scripts/build_desktop_bundle.ps1`：桌面发布打包脚本。
   数据卷归档根为 `app/`（安装器解到 `$INSTDIR`），增量包归档根为 `app/` 的内容（壳直接解到 `app.new/`）。
+- **瘦包分发 + 程序内下载管理**（ADR-0005）：安装包不再含 torch 运行时与模型权重。
+  - `app/integrated_app/download_service.py`：环境包/模型安装（分卷下载 → 逐卷 SHA256 → 合并 →
+    解压 → 离线 `pip install --no-index` → 写 `RUNTIME.json`）、任务管理（后台线程 + 取消）、卸载
+    （VAE/torch_cache 属共享资产，只删目标目录）。
+  - `app/integrated_app/routes/downloads.py`：状态/清单/启动/进度/取消/卸载 API，
+    重操作加回环白名单守卫。**顶层禁止 `import torch`**（引导态下下载页必须打得开）。
+  - `/downloads` 页面（与首页/设置同级）+ 导航入口 + 三语文案；进度 1s 轮询。
+  - 壳：`resolve_runtime_dir` 增加 `app/bootstrap/` 引导解释器层，新增 `PythonMode`；
+    引导态自动把入口切到 `/downloads` 而非首页。
+  - 打包脚本 `-Mode slim|runtime|all`：slim 产出瘦包（引导解释器落 `app/bootstrap/`，不含模型），
+    runtime 产出 torch cu128 wheels 环境包 + `downloads_catalog.json`。
+    实测瘦包载荷 66.8 MB → 7z **20.0 MB 单卷**（旧全量数据卷需 8×1900MB 分卷）。
+  - 环境包装进 `bootstrap/` 自身 site-packages，不另起一份解释器；壳靠
+    `bootstrap/Lib/site-packages/torch` 判定已是完整运行时。
 
 ### Changed
 
 - `app_server.main()` 改为持有 `uvicorn.Server` 句柄（退出走正常 shutdown 流程），
   新增 `serve()` 与 `request_shutdown()`；`--port/--host` 由便携启动器传入。
+- **分发形态变更**（ADR-0005）：`VOSR2Lite-Data.7z.001..` 由「含运行时与全量模型」变为
+  「仅含应用代码 + 引导解释器」。已装用户如需离线使用，请自行预置 `app/model/` 与
+  `app/bootstrap/` 的 torch；新装用户首次启动后需在「下载管理」页安装环境与模型。
 
 ## [0.2.1] - 2026-10-28
 
