@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}VOSR2-Lite - {{ t('nav.downloads') }}{% endblock %}
+
+{% block content %}
+<div class="sv-page">
+    <div class="sv-page-header">
+        <h1>{{ t('downloads.title') }}</h1>
+        <p class="sv-page-desc">{{ t('downloads.desc') }}</p>
+    </div>
+
+    <div id="readyBanner" class="alert alert-warning" role="status" hidden></div>
+
+    <div class="sv-card">
+        <div class="sv-card-header"><h3><i class="bi bi-info-circle"></i> {{ t('downloads.status') }}</h3></div>
+        <div class="sv-card-body">
+            <table class="sv-table sv-table-kv">
+                <tr><td>{{ t('downloads.run_mode') }}</td><td id="runMode">--</td></tr>
+                <tr><td>{{ t('downloads.python') }}</td><td id="runtimePython">--</td></tr>
+                <tr><td>{{ t('downloads.torch') }}</td><td id="runtimeTorch">--</td></tr>
+                <tr><td>{{ t('downloads.cuda') }}</td><td id="runtimeCuda">--</td></tr>
+                <tr><td>{{ t('downloads.runtime_path') }}</td><td id="runtimePath">--</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="sv-card">
+        <div class="sv-card-header"><h3><i class="bi bi-box-seam"></i> {{ t('downloads.runtime') }}</h3></div>
+        <div class="sv-card-body">
+            <p id="runtimeSummary" class="sv-muted">--</p>
+            <div id="runtimeProgressWrap" class="progress mb-2" hidden>
+                <div id="runtimeBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%"></div>
+            </div>
+            <p id="runtimeProgressText" class="sv-muted" hidden></p>
+            <div class="sv-actions">
+                <button class="btn btn-primary btn-sm" id="btnInstallRuntime">{{ t('downloads.install_runtime') }}</button>
+                <button class="btn btn-outline-danger btn-sm" id="btnUninstallRuntime">{{ t('downloads.uninstall_runtime') }}</button>
+            </div>
+            <p class="sv-muted mt-2 mb-0">{{ t('downloads.runtime_note') }}</p>
+        </div>
+    </div>
+
+    <div class="sv-card">
+        <div class="sv-card-header"><h3><i class="bi bi-hdd-stack"></i> {{ t('downloads.models') }}</h3></div>
+        <div class="sv-card-body">
+            <table class="sv-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('downloads.model') }}</th>
+                        <th>{{ t('downloads.vram') }}</th>
+                        <th>{{ t('downloads.size') }}</th>
+                        <th>{{ t('downloads.state') }}</th>
+                        <th>{{ t('downloads.action') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="modelRows">
+                    <tr><td colspan="5" class="sv-muted">{{ t('common.loading') }}</td></tr>
+                </tbody>
+            </table>
+            <p class="sv-muted mt-2 mb-0">{{ t('downloads.model_note') }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce | default('') }}">
+(function () {
+    'use strict';
+    var A = window.VOSR2;
+    var I18N = window.__I18N__ || {};
+    function t(key, fallback) { return I18N[key] || fallback || key; }
+
+    var statusData = null;
+    var catalogData = null;
+    var timer = null;
+
+    function fmtSize(bytes) {
+        if (!bytes) { return '-'; }
+        try { return A.formatSize(bytes); } catch (e) { return String(bytes); }
+    }
+
+    async function loadAll() {
+        try {
+            statusData = await A.api.get('/api/downloads/status');
+            catalogData = await A.api.get('/api/downloads/catalog');
+            renderStatus();
+            renderRuntime();
+            renderModels();
+        } catch (err) {
+            A.toast(err.message || '加载失败', 'error');
+        }
+    }
+
+    function renderStatus() {
+        var rt = (statusData && statusData.runtime) || {};
+        document.getElementById('runMode').textContent = modeLabel(statusData && statusData.mode);
+        document.getElementById('runtimePython').textContent = rt.python_version || t('downloads.not_installed', '未安装');
+        document.getElementById('runtimeTorch').textContent = rt.torch_version || '-';
+        document.getElementById('runtimeCuda').textContent = rt.cuda || '-';
+        document.getElementById('runtimePath').textContent = rt.path || '-';
+
+        var banner = document.getElementById('readyBanner');
+        if (statusData && statusData.ready) {
+            banner.hidden = true;
+        } else {
+            banner.hidden = false;
+            banner.textContent = rt.present
+                ? t('downloads.need_model', '运行环境已就位，请下载至少一个模型权重。')
+                : t('downloads.need_runtime', '尚未安装运行环境，请先安装后再下载模型权重。');
+        }
+    }
+
+    function modeLabel(mode) {
+        if (mode === 'full') { return t('downloads.mode_full', '完整运行时'); }
+        if (mode === 'bootstrap') { return t('downloads.mode_bootstrap', '引导解释器（未装环境）'); }
+        return t('downloads.mode_system', '系统 Python');
+    }
+
+    function renderRuntime() {
+        var rt = (statusData && statusData.runtime) || {};
+        var cat = (catalogData && catalogData.runtime) || null;
+        var summary = document.getElementById('runtimeSummary');
+
+        if (rt.present) {
+            summary.textContent = t('downloads.runtime_installed', '已安装')
+                + '：Python ' + (rt.python_version || '?')
+                + ' / torch ' + (rt.torch_version || '?')
+                + ' / ' + (rt.cuda || 'cpu')
+                + ' / ' + fmtSize(rt.size_bytes);
+        } else if (cat) {
+            summary.textContent = t('downloads.runtime_available', '可安装')
+                + '：Python ' + (cat.python || '?')
+                + ' / torch ' + (cat.torch || '?')
+                + ' / ' + (cat.cuda || 'cpu')
+                + ' / ' + fmtSize(cat.size_bytes || 0);
+        } else {
+            summary.textContent = t('downloads.no_catalog', '未找到环境包清单，无法确定下载地址（请更新到含清单的版本）。');
+        }
+
+        var btn = document.getElementById('btnInstallRuntime');
+        btn.textContent = rt.present ? t('downloads.reinstall_runtime', '重新安装环境') : t('downloads.install_runtime', '安装运行环境');
+        btn.disabled = !cat;
+        document.getElementById('btnUninstallRuntime').disabled = !rt.present;
+    }
+
+    function renderModels() {
+        var rows = document.getElementById('modelRows');
+        var models = (statusData && statusData.models) || [];
+        if (!models.length) {
+            rows.innerHTML = '<tr><td colspan="5" class="sv-muted">-</td></tr>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < models.length; i++) {
+            var m = models[i];
+            html += '<tr data-model="' + A.escapeHtml(m.name) + '">'
+                + '<td>' + A.escapeHtml(m.display_name) + (m.is_default ? ' <span class="badge bg-secondary">' + t('downloads.default', '默认') + '</span>' : '') + '</td>'
+                + '<td>' + (m.min_vram_gb ? m.min_vram_gb + ' GB' : '-') + '</td>'
+                + '<td>' + fmtSize(m.size_bytes) + '</td>'
+                + '<td class="cell-state">' + (m.present ? t('downloads.installed', '已安装') : t('downloads.not_installed', '未安装')) + '</td>'
+                + '<td class="cell-action">'
+                + '<button class="btn btn-primary btn-sm btn-model-download" data-target="' + A.escapeHtml(m.name) + '">' + t('common.download', '下载') + '</button> '
+                + '<button class="btn btn-outline-danger btn-sm btn-model-delete" data-target="' + A.escapeHtml(m.name) + '"' + (m.present ? '' : ' disabled') + '>' + t('common.delete', '删除') + '</button>'
+                + '<div class="progress mt-1 model-progress" hidden><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div></div>'
+                + '</td></tr>';
+        }
+        rows.innerHTML = html;
+
+        var dlButtons = rows.querySelectorAll('.btn-model-download');
+        for (var j = 0; j < dlButtons.length; j++) {
+            dlButtons[j].addEventListener('click', function (ev) {
+                startDownload('model', ev.currentTarget.getAttribute('data-target'));
+            });
+        }
+        var delButtons = rows.querySelectorAll('.btn-model-delete');
+        for (var k = 0; k < delButtons.length; k++) {
+            delButtons[k].addEventListener('click', function (ev) {
+                uninstall('model', ev.currentTarget.getAttribute('data-target'));
+            });
+        }
+    }
+
+    async function startDownload(kind, target) {
+        try {
+            await A.api.post('/api/downloads/start', { kind: kind, target: target || '' });
+            A.toast(t('downloads.started', '下载已开始'), 'info');
+            startPoll();
+        } catch (err) {
+            A.toast(err.message || '启动失败', 'error');
+        }
+    }
+
+    async function uninstall(kind, target) {
+        if (!window.confirm(t('downloads.confirm_delete', '确定删除？删除后需要重新下载。'))) { return; }
+        try {
+            await A.api.post('/api/downloads/uninstall', { kind: kind, target: target || '' });
+            A.toast(t('downloads.deleted', '已删除'), 'info');
+            await loadAll();
+        } catch (err) {
+            A.toast(err.message || '删除失败', 'error');
+        }
+    }
+
+    function startPoll() {
+        if (timer) { return; }
+        timer = window.setInterval(poll, 1000);
+        poll();
+    }
+
+    function stopPoll() {
+        if (timer) { window.clearInterval(timer); timer = null; }
+    }
+
+    async function poll() {
+        var data = null;
+        try {
+            data = await A.api.get('/api/downloads/progress');
+        } catch (err) {
+            stopPoll();
+            return;
+        }
+        var tasks = (data && data.tasks) || [];
+        var running = false;
+        for (var i = 0; i < tasks.length; i++) {
+            applyTask(tasks[i]);
+            if (!tasks[i].finished) { running = true; }
+        }
+        if (!running) {
+            stopPoll();
+            await loadAll();
+        }
+    }
+
+    function applyTask(task) {
+        if (task.kind === 'runtime') {
+            var wrap = document.getElementById('runtimeProgressWrap');
+            var bar = document.getElementById('runtimeBar');
+            var text = document.getElementById('runtimeProgressText');
+            if (task.finished) {
+                wrap.hidden = true;
+                text.hidden = true;
+                if (task.stage === 'error') { A.toast(task.error || '安装失败', 'error'); }
+                return;
+            }
+            wrap.hidden = false;
+            text.hidden = false;
+            bar.style.width = Math.round((task.ratio || 0) * 100) + '%';
+            text.textContent = stageLabel(task.stage) + ' ' + Math.round((task.ratio || 0) * 100) + '%' + (task.message ? ' · ' + task.message : '');
+            return;
+        }
+        var row = document.querySelector('#modelRows tr[data-model="' + task.target + '"]');
+        if (!row) { return; }
+        var prog = row.querySelector('.model-progress');
+        var inner = prog ? prog.querySelector('.progress-bar') : null;
+        if (task.finished) {
+            if (prog) { prog.hidden = true; }
+            if (task.stage === 'error') { A.toast(task.error || '下载失败', 'error'); }
+            return;
+        }
+        if (prog && inner) {
+            prog.hidden = false;
+            inner.style.width = Math.round((task.ratio || 0) * 100) + '%';
+        }
+    }
+
+    function stageLabel(stage) {
+        var map = {
+            queued: t('downloads.stage_queued', '排队中'),
+            download: t('downloads.stage_download', '下载中'),
+            verify: t('downloads.stage_verify', '校验中'),
+            extract: t('downloads.stage_extract', '解压中'),
+            swap: t('downloads.stage_swap', '安装中'),
+            done: t('downloads.stage_done', '完成'),
+            cancelled: t('downloads.stage_cancelled', '已取消'),
+            error: t('downloads.stage_error', '失败')
+        };
+        return map[stage] || stage;
+    }
+
+    document.getElementById('btnInstallRuntime').addEventListener('click', function () {
+        startDownload('runtime', '');
+    });
+    document.getElementById('btnUninstallRuntime').addEventListener('click', function () {
+        uninstall('runtime', '');
+    });
+
+    loadAll();
+})();
+</script>
+{% endblock %}

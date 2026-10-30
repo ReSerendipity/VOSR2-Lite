@@ -99,6 +99,15 @@ def register_page_routes(app: FastAPI) -> None:
     async def settings_page(request: Request):
         return render_page(request, "settings.html", active_page="settings")
 
+    @app.get("/downloads", response_class=HTMLResponse)
+    async def downloads_page(request: Request):
+        """下载管理页：瘦包首次启动时安装运行环境与模型权重的入口。
+
+        必须在无 torch 的引导解释器下也能渲染——本页不依赖任何推理依赖，
+        数据全部来自 /api/downloads/*（见 routes/downloads.py）。
+        """
+        return render_page(request, "downloads.html", active_page="downloads")
+
     @app.exception_handler(404)
     async def not_found_handler(request: Request, exc):
         from fastapi.responses import RedirectResponse
