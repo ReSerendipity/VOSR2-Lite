@@ -315,6 +315,10 @@ pub fn emit_startup_status(app: &AppHandle, message: &str, error: Option<String>
     });
 }
 
+/// 环境安装成功后由后端写入解释器目录的元信息文件名（与
+/// `app/integrated_app/download_service.py::RUNTIME_META_NAME` 必须一致）。
+const RUNTIME_META_FILE: &str = "RUNTIME.json";
+
 /// 当前 Python 运行时的形态（决定壳把用户带到哪个页面）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PythonMode {
@@ -335,15 +339,11 @@ pub fn detect_python_mode(app_dir: &Path) -> PythonMode {
     }
     let bootstrap = app_dir.join("bootstrap");
     if bootstrap.join("python.exe").exists() {
-        // 环境包装的就是 torch wheels，安装时装进 bootstrap 自身的 site-packages，
-        // 不另起一份解释器——所以装完后 bootstrap 目录名字没变，但已经是完整运行时。
-        // 靠 torch 包目录判定，比启动子进程 import torch（数秒）便宜得多。
-        if bootstrap
-            .join("Lib")
-            .join("site-packages")
-            .join("torch")
-            .exists()
-        {
+        // 判据必须是「环境安装流程写下的元信息」，不能只看 site-packages/torch：
+        // 实测 WinPython 完整版自带 torch 2.15.0+cpu（552 MB、CUDA 不可用），
+        // 只看 torch 目录会把「未装环境」误判成 Full → 用户永远看不到下载管理页，
+        // 也就永远装不上真正的 cu128 环境。RUNTIME.json 只在我们装完环境后写入。
+        if bootstrap.join(RUNTIME_META_FILE).exists() {
             return PythonMode::Full;
         }
         return PythonMode::Bootstrap;
@@ -481,13 +481,24 @@ mod tests {
     }
 
     #[test]
-    fn mode_is_full_when_bootstrap_already_has_torch() {
-        let app = make_app_dir("boot-torch", Some("bootstrap"));
-        // 环境包装进 bootstrap 自身后目录名不变，靠 site-packages/torch 判定
-        let site = app.join("bootstrap").join("Lib").join("site-packages").join("torch");
-        std::fs::create_dir_all(&site).unwrap();
+    fn mode_is_full_when_bootstrap_has_runtime_meta() {
+        let app = make_app_dir("boot-meta", Some("bootstrap"));
+        // 环境装进 bootstrap 自身后目录名不变，靠 RUNTIME.json 判定
+        std::fs::write(app.join("bootstrap").join("RUNTIME.json"), b"{}").unwrap();
         assert_eq!(detect_python_mode(&app), PythonMode::Full);
         assert_eq!(startup_entry(detect_python_mode(&app)), "");
+        let _ = std::fs::remove_dir_all(&app);
+    }
+
+    #[test]
+    fn mode_is_bootstrap_when_bundled_torch_without_meta() {
+        // 回归：WinPython 完整版自带 torch 2.15.0+cpu（无 CUDA）。
+        // 只看 site-packages/torch 会误判成已装环境，用户将永远看不到下载管理页。
+        let app = make_app_dir("boot-cpu-torch", Some("bootstrap"));
+        let site = app.join("bootstrap").join("Lib").join("site-packages").join("torch");
+        std::fs::create_dir_all(&site).unwrap();
+        assert_eq!(detect_python_mode(&app), PythonMode::Bootstrap);
+        assert_eq!(startup_entry(detect_python_mode(&app)), "downloads");
         let _ = std::fs::remove_dir_all(&app);
     }
 

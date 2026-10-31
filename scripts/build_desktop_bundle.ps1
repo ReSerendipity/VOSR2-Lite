@@ -413,10 +413,30 @@ function New-Vosr2AppPayload {
             throw "数据卷需要便携运行时：请提供 -RuntimeDir 或去掉 -SkipAutoPrepare"
         }
         $pyInfo = Resolve-Vosr2RuntimeRoot -Path $Runtime
-        $st = Copy-Vosr2Tree -Source $pyInfo.PythonDir -Dest (Join-Path $appDir $RuntimeDestName) `
-            -ExcludePatterns @('pip-log.txt', '*.typecheck.log', 'WINPYTHON_*', 'notebooks\*')
+        # 解释器数万文件，走 robocopy 批量复制（逐文件硬链接会超时，见库函数注释）
+        $st = Copy-Vosr2TreeBulk -Source $pyInfo.PythonDir -Dest (Join-Path $appDir $RuntimeDestName) `
+            -ExcludeDirs @('notebooks') `
+            -ExcludeFiles @('pip-log.txt', '*.typecheck.log', 'WINPYTHON_*')
         Write-Host ("    · {0,-10} {1,6} 文件 / {2}" -f $RuntimeDestName, $st.Files, (Format-Vosr2Size $st.Bytes))
         $files += $st.Files; $bytes += $st.Bytes
+
+        # 剔除 WinPython 完整版自带的 torch（实测 2.15.0+cpu，552 MB、CUDA 不可用）：
+        #   ① 瘦包本就不该带 torch；
+        #   ② 留着会让「是否已装环境」的判定失真——用户会拿到一个跑不动的 CPU 版，
+        #      且看不到下载管理页去装真正的 cu128 环境。
+        $sitePackages = Join-Path $appDir "$RuntimeDestName\Lib\site-packages"
+        if (Test-Path -LiteralPath $sitePackages) {
+            foreach ($pkg in @('torch', 'torchvision', 'torchaudio', 'torchgen')) {
+                $pkgDir = Join-Path $sitePackages $pkg
+                if (Test-Path -LiteralPath $pkgDir) {
+                    Remove-Vosr2TreeFast -Path $pkgDir
+                    Write-Host "    剔除自带 $pkg（CPU 版，非本仓要求的 cu128）"
+                }
+                foreach ($di in @(Get-ChildItem -LiteralPath $sitePackages -Directory -Filter "$pkg-*.dist-info" -ErrorAction SilentlyContinue)) {
+                    Remove-Vosr2TreeFast -Path $di.FullName
+                }
+            }
+        }
 
         if ($WithModels -and $ModelDirectory -and (Test-Path -LiteralPath $ModelDirectory)) {
             foreach ($sub in $ModelSubDirs) {

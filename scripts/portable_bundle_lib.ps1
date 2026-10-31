@@ -355,6 +355,55 @@ function Copy-Vosr2Tree {
     return [pscustomobject]@{ Files = $files; Bytes = $bytes; HardLinks = $links; Copies = $copies; Skipped = $skipped }
 }
 
+function Copy-Vosr2TreeBulk {
+    <#
+        大目录批量复制（robocopy），用于运行时/解释器这类数万文件的目录。
+
+        为什么不能继续用 Copy-Vosr2Tree：它逐文件走 `cmd.exe /c mklink /H`，
+        每文件一次进程创建。实测 WinPython 3.12 有 32253 个文件 / 1.1 GB，
+        逐文件硬链接远超 2 分钟（后台任务直接超时被杀）。robocopy 快一个量级。
+
+        代价：不用硬链接，会占真实磁盘（1 GB 量级，可接受）。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Dest,
+        [string[]]$ExcludeDirs = @(),
+        [string[]]$ExcludeFiles = @()
+    )
+    if (-not (Test-Path -LiteralPath $Source)) {
+        throw "Copy-Vosr2TreeBulk: 源不存在 $Source"
+    }
+    if (Test-Path -LiteralPath $Dest) {
+        Remove-Vosr2TreeFast -Path $Dest
+    }
+    New-Item -ItemType Directory -Path $Dest -Force | Out-Null
+    $arguments = @($Source, $Dest, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', '/R:1', '/W:1')
+    if ($ExcludeDirs.Count -gt 0) {
+        $arguments += '/XD'
+        $arguments += $ExcludeDirs
+    }
+    if ($ExcludeFiles.Count -gt 0) {
+        $arguments += '/XF'
+        $arguments += $ExcludeFiles
+    }
+    $res = Invoke-Vosr2Native -Exe 'robocopy' -Arguments $arguments
+    # robocopy 退出码 <8 均视为成功（0=无变化 1=已复制 2=额外文件 …）
+    if ($res.ExitCode -ge 8) {
+        throw "Copy-Vosr2TreeBulk: robocopy 复制失败（退出码 $($res.ExitCode)）：$($res.Text)"
+    }
+    $items = @(Get-ChildItem -LiteralPath $Dest -Recurse -File -Force -ErrorAction SilentlyContinue)
+    $bytes = [long]0
+    foreach ($item in $items) { $bytes += [long]$item.Length }
+    return [pscustomobject]@{
+        Files     = $items.Count
+        Bytes     = $bytes
+        HardLinks = 0
+        Copies    = $items.Count
+        Skipped   = 0
+    }
+}
+
 function New-Vosr2Archive {
     <#
         把 $SourceDir 目录内容打成单文件归档（归档内条目为 $SourceDir 的直接子项）。
