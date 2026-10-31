@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 环境包装进 `bootstrap/` 自身 site-packages，不另起一份解释器；壳靠
     后端安装成功后写入的 `bootstrap/RUNTIME.json` 判定已是完整运行时
     （不能只看 `site-packages/torch`：WinPython 自带 CPU 版 torch 会把未装环境误判为已装）。
+- **回滚演练记录** `docs/ROLLBACK_DRILL_2026-10-31.md`：按 §5 完成首次真演练——
+  v0.2.1 资产下载 / SHA-256 逐件校验 / 解压与版本位断言；发布提交 `c7b7b16` 的
+  revert 冲突处置与合成回滚（版本位 0.2.0 断言 + ruff / pytest）；GPU 真实推理
+  冒烟通过（18.4 s，收尾显存回落 0 MiB）。`docs/release-governance.md` §5 补演练
+  留痕与季度演练节奏。已登记缺口：v0.2.0 无 Release 资产（回滚目标 v0.2.1 / v0.1.0）。
 
 ### Changed
 
