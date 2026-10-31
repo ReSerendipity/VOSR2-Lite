@@ -296,7 +296,10 @@
 
   function wire() {
     wireUpdateEvents();
-    installTitleBar();
+    // 自绘标题栏已停用（2026-10-31）：壳改回原生 decorations(true)，窗口控制由
+    // 系统标题栏承担。注入条会被页面自己的导航栏盖住（绘制层级随页面 CSS
+    // 漂移），正是三个窗口按钮「看不见」的根因。
+    // installTitleBar();
     watchTaskLifecycle();
   }
 

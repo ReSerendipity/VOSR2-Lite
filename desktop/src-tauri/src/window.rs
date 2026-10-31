@@ -1,4 +1,4 @@
-﻿//! 窗口管理增强（对应指导文档任务 2）：
+//! 窗口管理增强（对应指导文档任务 2）：
 //! - 窗口状态记忆：关闭/移动/缩放时记录大小、位置、最大化，下次启动恢复；
 //!   存储于 `%APPDATA%/VOSR2Lite/window_state.json`（见 [`crate::config::WindowState`]）。
 //! - 外部链接：非本机地址不在 WebView 内跳转，改用系统默认浏览器打开
@@ -144,8 +144,11 @@ pub fn build_main_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .title(IDLE_TITLE)
         .min_inner_size(1024.0, 768.0)
         .resizable(true)
-        // 无边框：标题栏由前端自绘（拖拽区 + 窗口控制按钮），正式产品不露系统窗口
-        .decorations(false)
+        // 原生标题栏（2026-10-31 定案）：此前用 decorations(false) + 前端自绘标题栏，
+        // 但自绘条被各页面自己的导航栏盖住（绘制层级随页面 CSS 漂移），三个窗口
+        // 控制按钮形同虚设。切回系统原生标题栏：最小化/最大化/关闭、Aero 贴靠、
+        // 双击最大化、Alt+F4 全部原生，零页面耦合。
+        .decorations(true)
         .visible(false)
         .initialization_script(BRIDGE_JS)
         .on_navigation(|url| {

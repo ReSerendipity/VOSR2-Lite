@@ -29,6 +29,9 @@ BrandingText "VOSR2 Lite"
 !ifndef SRC_7ZA
   !define SRC_7ZA "7za.exe"
 !endif
+!ifndef SRC_DATA
+  !error "单文件安装包：需用 -DSRC_DATA=<数据卷 .7z.001 路径> 内嵌数据分卷"
+!endif
 
 Var StartMenuFolder
 Var TOOLSDIR
@@ -69,12 +72,14 @@ Section "VOSR2 Lite 桌面版" SEC_APP
   ; 7za.exe，下面的 ExecWait 只认 7za.exe。改名嵌入可避免「文件在但进程起不来，
   ; ExecWait 拿到空错误码」这种不报错也不成功的安装失败（v0.2.1 真机踩过）。
   File /oname=7za.exe "${SRC_7ZA}"
+  ; 单文件安装包：数据分卷直接内嵌（瘦包已不带环境/模型，体积可接受）
+  File /oname=${DATA_PREFIX}.001 "${SRC_DATA}"
   File "killvosr2lite.ps1"
 
   !insertmacro KillRunning
 
   ; 校验数据分卷存在（数据卷含 runtime/ + model/ + app/ 基线）
-  ${IfNot} ${FileExists} "$EXEDIR\${DATA_PREFIX}.001"
+  ${IfNot} ${FileExists} "$TOOLSDIR\${DATA_PREFIX}.001"
     MessageBox MB_ICONSTOP "缺少数据分卷 ${DATA_PREFIX}.001。$\n请确认 setup.exe 与全部数据分卷（.001/.002/...）位于同一目录。"
     Abort
   ${EndIf}
@@ -82,7 +87,10 @@ Section "VOSR2 Lite 桌面版" SEC_APP
   ; 创建安装目录并解压数据分卷
   SetOutPath "$INSTDIR"
   DetailPrint "正在解压数据分卷（体积大，视磁盘速度需数分钟，请勿关闭窗口）..."
-  ExecWait '"$TOOLSDIR\7za.exe" x "$EXEDIR\${DATA_PREFIX}.001" -o"$INSTDIR" -y -bso0 -bsp0' $0
+  ExecWait '"$TOOLSDIR\7za.exe" x "$TOOLSDIR\${DATA_PREFIX}.001" -o"$INSTDIR" -y -bso0 -bsp0' $0
+  ; 释放临时工具（内嵌数据卷已解出，避免占用 %TEMP%）
+  Delete "$TOOLSDIR\${DATA_PREFIX}.001"
+  Delete "$TOOLSDIR\7za.exe"
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "数据解压失败（7z 错误码 $0）。$\n请检查：1) 磁盘空间是否充足；2) 数据分卷是否完整（SHA256 校验见随附 SHA256SUMS）。"
     Abort
