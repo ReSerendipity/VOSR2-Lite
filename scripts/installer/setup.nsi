@@ -65,7 +65,10 @@ Section "VOSR2 Lite 桌面版" SEC_APP
   RMDir /r "$TOOLSDIR"
   CreateDirectory "$TOOLSDIR"
   SetOutPath "$TOOLSDIR"
-  File "${SRC_7ZA}"
+  ; 统一嵌入名为 7za.exe：编译机上的 7-Zip 可能是 7z.exe（需 7z.dll）也可能是独立的
+  ; 7za.exe，下面的 ExecWait 只认 7za.exe。改名嵌入可避免「文件在但进程起不来，
+  ; ExecWait 拿到空错误码」这种不报错也不成功的安装失败（v0.2.1 真机踩过）。
+  File /oname=7za.exe "${SRC_7ZA}"
   File "killvosr2lite.ps1"
 
   !insertmacro KillRunning

@@ -30,9 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     引导态自动把入口切到 `/downloads` 而非首页。
   - 打包脚本 `-Mode slim|runtime|all`：slim 产出瘦包（引导解释器落 `app/bootstrap/`，不含模型），
     runtime 产出 torch cu128 wheels 环境包 + `downloads_catalog.json`。
-    实测瘦包载荷 66.8 MB → 7z **20.0 MB 单卷**（旧全量数据卷需 8×1900MB 分卷）。
+    实测瘦包载荷 32315 文件 / 1.02 GB → 7z **128.8 MB 单卷**（旧全量数据卷需 8×1900MB 分卷）。
   - 环境包装进 `bootstrap/` 自身 site-packages，不另起一份解释器；壳靠
-    `bootstrap/Lib/site-packages/torch` 判定已是完整运行时。
+    后端安装成功后写入的 `bootstrap/RUNTIME.json` 判定已是完整运行时
+    （不能只看 `site-packages/torch`：WinPython 自带 CPU 版 torch 会把未装环境误判为已装）。
 
 ### Changed
 
@@ -41,6 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **分发形态变更**（ADR-0005）：`VOSR2Lite-Data.7z.001..` 由「含运行时与全量模型」变为
   「仅含应用代码 + 引导解释器」。已装用户如需离线使用，请自行预置 `app/model/` 与
   `app/bootstrap/` 的 torch；新装用户首次启动后需在「下载管理」页安装环境与模型。
+
+### Fixed
+
+- **安装器解压步骤静默失败**：`setup.nsi` 用 `-DSRC_7ZA` 指定的文件原样嵌入（编译机多为
+  `7z.exe`），但 `ExecWait` 里写死调用 `$TOOLSDIR\7za.exe`。文件名对不上 → 进程起不来 →
+  `ExecWait` 拿到空错误码，弹窗只显示「数据解压失败（7z 错误码 ）」，安装目录空着。
+  改为 `File /oname=7za.exe` 统一嵌入名，编译机用 `7z.exe` 或 `7za.exe` 均可。
+  真机验证：静默安装 `D:\VOSR2Lite` 17264 文件 / 538 MB，壳日志 `运行时形态: Bootstrap，
+  导航入口: 'downloads'`，`/downloads` 与 `/api/downloads/status` 均 200。
 
 ## [0.2.1] - 2026-10-28
 
