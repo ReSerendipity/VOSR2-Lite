@@ -407,6 +407,19 @@ function New-Vosr2AppPayload {
         $files += $st.Files; $bytes += $st.Bytes
     }
 
+    # 模型下载脚本必须随包分发：页面「下载模型」按钮走 download_service._load_model_script()，
+    # 它按 <app>\scripts\download_model.py 加载。scripts\ 整体被排除（含构建脚本/安装器 exe），
+    # 这里只补这一个文件——漏了会表现为「点下载模型 500 / FileNotFoundError」。
+    $dmScript = Join-Path $ProjectRoot 'scripts\download_model.py'
+    if (Test-Path -LiteralPath $dmScript) {
+        $dmDir = Join-Path $appDir 'scripts'
+        New-Item -ItemType Directory -Path $dmDir -Force | Out-Null
+        Copy-Item -LiteralPath $dmScript -Destination (Join-Path $dmDir 'download_model.py') -Force
+        Write-Host '    · 已随包分发 scripts\download_model.py（模型下载入口）'
+    } else {
+        throw "缺少 scripts\download_model.py：模型下载功能会不可用"
+    }
+
     if ($WithHeavy) {
         # 运行时：壳只认 <app>\runtime\python.exe，故把 WinPython 的 python-3.12.x.amd64 内容搬成 runtime/
         if (-not $Runtime) {
