@@ -3,7 +3,7 @@
   "runtime": {
     "version": "1",
     "tag": "runtime-v1",
-    "base_url": "https://github.com/ReSerendipity/VOSR2-Lite/releases/download/runtime-v1",
+    "base_url": "https://modelscope.cn/models/ReSerendipity/VOSR2Lite-Runtime/resolve/master",
     "python": "3.12.10",
     "torch": "2.10.0+cu128",
     "cuda": "cu128",
@@ -14,18 +14,11 @@
     "size_bytes": 2907703182,
     "built_at": "2026-11-01T02:05:37Z",
     "min_app_version": "0.2.1",
-    "volumes": [
-      {
-        "name": "VOSR2-Lite-Runtime-cu128.zip.001",
-        "size": 1992294400,
-        "sha256": "ae2adbd04bf615503abdd8c9dc4a4d805c5373f364595993b24128e561ce3012"
-      },
-      {
-        "name": "VOSR2-Lite-Runtime-cu128.zip.002",
-        "size": 915408782,
-        "sha256": "12c6b461795dad34e6cebe8353bdb9a68bbe4718bae174fac24eb002d3783bdd"
-      }
-    ]
+    "volumes": [],
+    "install_mode": "online",
+    "index_url": "https://download.pytorch.org/whl/cu128",
+    "pip_extra_index": "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "note": "install_mode=online：页内点安装时后端直接 pip 官方索引安装 （torch 家族 + 生态包），无需下载预置分卷。"
   },
   "models": []
 }
