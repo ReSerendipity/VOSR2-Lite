@@ -253,7 +253,9 @@ def install_runtime(
         )
     if str(catalog.get("install_mode") or "").lower() == "online":
         # 2026-11-01：在线安装（官方索引现拉），不依赖预置分卷
-        return _install_runtime_online(catalog, on_progress=on_progress, should_cancel=should_cancel)
+        return _install_runtime_online(
+            catalog, on_progress=on_progress, should_cancel=should_cancel
+        )
     volumes = [v for v in catalog.get("volumes", []) if isinstance(v, dict)]
     if not volumes:
         raise RuntimeError("环境包清单缺少 volumes")
