@@ -135,7 +135,8 @@ def zip_and_split(wheels: Path, out: Path, base_name: str, max_volume_bytes: int
         for whl in sorted(wheels.glob("*.whl")):
             print(f"[zip] {whl.name}")
             zf.write(whl, arcname=whl.name)
-    handle.close()
+    if handle is not None:
+        handle.close()
 
     for i in range(1, index + 1):
         path = out / f"{base_name}.{i:03d}"
