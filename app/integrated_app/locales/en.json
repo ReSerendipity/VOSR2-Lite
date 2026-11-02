@@ -189,7 +189,9 @@
     "license": "License",
     "usage": "Quick start",
     "usage_download": "1. Download model weights (~6.6 GB, hf-mirror by default):",
-    "usage_start": "2. Start the service (default 127.0.0.1:7871):"
+    "usage_start": "2. Start the service (default 127.0.0.1:7871):",
+    "social": "Follow us",
+    "social_desc": "Product updates, release notes and tips:"
   },
   "downloads": {
     "title": "Downloads",

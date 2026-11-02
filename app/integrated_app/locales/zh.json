@@ -189,7 +189,9 @@
     "license": "许可证",
     "usage": "快速上手",
     "usage_download": "1. 下载模型权重（约 6.6 GB，默认走 hf-mirror 镜像）：",
-    "usage_start": "2. 启动服务（默认 127.0.0.1:7871）："
+    "usage_start": "2. 启动服务（默认 127.0.0.1:7871）：",
+    "social": "关注我们",
+    "social_desc": "产品动态、更新与使用技巧："
   },
   "downloads": {
     "title": "下载管理",
