@@ -48,7 +48,12 @@ def run(cmd: list[str], env: dict | None = None) -> None:
 
 
 def download_wheels(
-    torch: str, torchvision: str, index_url: str, wheels: Path, python_tag: str = "312", extra: list[str] | None = None
+    torch: str,
+    torchvision: str,
+    index_url: str,
+    wheels: Path,
+    python_tag: str = "312",
+    extra: list[str] | None = None,
 ) -> list[Path]:
     if wheels.exists():
         shutil.rmtree(wheels)
@@ -135,7 +140,10 @@ def zip_and_split(wheels: Path, out: Path, base_name: str, max_volume_bytes: int
     for i in range(1, index + 1):
         path = out / f"{base_name}.{i:03d}"
         volumes.append({"name": path.name, "size": path.stat().st_size, "sha256": sha256_of(path)})
-        print(f"[vol] {path.name}  {path.stat().st_size / 1e6:.0f} MB  {volumes[-1]['sha256'][:12]}…")
+        print(
+            f"[vol] {path.name}  {path.stat().st_size / 1e6:.0f} MB  "
+            f"{volumes[-1]['sha256'][:12]}…"
+        )
     return volumes
 
 
@@ -152,7 +160,10 @@ def write_catalog(
     extra: list[str] | None = None,
 ) -> Path:
     catalog_path = ROOT / "app" / "downloads_catalog.json"
-    catalog = json.loads(catalog_path.read_text(encoding="utf-8")) if catalog_path.exists() else {"schema": 1}
+    if catalog_path.exists():
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    else:
+        catalog = {"schema": 1}
     total = sum(v["size"] for v in volumes)
     catalog["schema"] = 1
     catalog["runtime"] = {
@@ -191,7 +202,9 @@ def main() -> int:
     parser.add_argument("--python-version", default="3.12.10")
     parser.add_argument("--python-tag", default="312")
     parser.add_argument(
-        "--extra-packages", default="", help="逗号分隔的额外轮子（如 torchaudio==2.5.1），同时写入下载与 packages 清单"
+        "--extra-packages",
+        default="",
+        help="逗号分隔的额外轮子（如 torchaudio==2.5.1），同时写入下载与 packages 清单",
     )
     parser.add_argument("--max-volume-mb", type=int, default=1900)
     parser.add_argument("--staging", default="")
@@ -227,7 +240,8 @@ def main() -> int:
     sums = [(v["sha256"], v["name"]) for v in volumes]
     catalog_file = out / "downloads_catalog.json"
     sums.append((sha256_of(catalog_file), catalog_file.name))
-    (out / "SHA256SUMS.txt").write_text("\n".join(f"{h}  {n}" for h, n in sums) + "\n", encoding="utf-8")
+    sums_text = "\n".join(f"{h}  {n}" for h, n in sums) + "\n"
+    (out / "SHA256SUMS.txt").write_text(sums_text, encoding="utf-8")
     manifest = {
         "product": ROOT.name,
         "kind": "runtime-bundle",
