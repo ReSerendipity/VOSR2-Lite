@@ -165,6 +165,7 @@ def _download_file(
 
 # ------------------------------------------------------------ 环境包安装 ----
 
+
 def _install_runtime_online(
     catalog: dict,
     on_progress=None,
@@ -195,16 +196,30 @@ def _install_runtime_online(
             on_progress(stage, ratio, message)
 
     report("download", 0.01, "连接官方索引…")
-    command = [sys.executable, "-m", "pip", "install", *packages,
-               "--no-warn-script-location", "--progress-bar", "off"]
+    command = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        *packages,
+        "--no-warn-script-location",
+        "--progress-bar",
+        "off",
+    ]
     if index_url:
         command += ["--index-url", index_url]
     if extra_index:
         command += ["--extra-index-url", extra_index]
     env = dict(os.environ, PIP_CONFIG_FILE="NUL")  # 屏蔽用户镜像，防止被顶成 +cpu
     proc = subprocess.Popen(
-        command, cwd=PROJECT_ROOT, env=env, text=True, encoding="utf-8",
-        errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        command,
+        cwd=PROJECT_ROOT,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
     tail: list[str] = []
     assert proc.stdout is not None
