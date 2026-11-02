@@ -189,7 +189,9 @@
     "license": "許可證",
     "usage": "快速上手",
     "usage_download": "1. 下載模型權重（約 6.6 GB，預設走 hf-mirror 映象）：",
-    "usage_start": "2. 啟動服務（預設 127.0.0.1:7871）："
+    "usage_start": "2. 啟動服務（預設 127.0.0.1:7871）：",
+    "social": "關注我們",
+    "social_desc": "產品動態、更新與使用技巧："
   },
   "downloads": {
     "title": "下載管理",
