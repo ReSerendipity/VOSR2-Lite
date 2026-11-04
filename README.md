@@ -155,6 +155,7 @@ DINOv2 架构已本地 vendored，无需 clone 上游仓库。
 
 ### 文档与治理
 
+- [docs/README.md](docs/README.md)：docs 文档索引（使用文档 / 发布治理 / ADR / 分发形态）。
 - [docs/用户手册.md](docs/用户手册.md)：面向使用者的完整手册（参数怎么选、查看器操作、安全开关、故障排查、命令行工具）。
 - [docs/release-governance.md](docs/release-governance.md)：发布 / 回滚治理（版本位同步、资产清单与 SHA-256 校验、draft 人工审核、回滚方式）。
 - [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md)：使用合规声明。
