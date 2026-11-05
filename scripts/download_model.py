@@ -19,9 +19,16 @@
     python scripts/download_model.py --endpoint https://hf-mirror.com
 
 特性:
-    - 幂等：已存在的文件自动跳过（登记了 sha256 的会校验）
+    - 幂等：已存在的文件自动跳过，且跳过前先对 sha256 清单校验（清单无
+      记录的会把当前文件哈希钉入 model/WEIGHTS_SHA256.json）
+    - 下载完成即校验：清单有记录而哈希不一致 → 删除损坏文件并报错退出
     - 断点续传：.part 文件 + HTTP Range（服务端不支持则整文件重下）
     - 多源回退：hf-mirror -> huggingface.co -> ModelScope
+    - --record-manifest：不下载，只把指定检查点已存在文件的 sha256
+      补登记进 model/WEIGHTS_SHA256.json
+
+清单校验语义见 app/integrated_app/weights_manifest.py：登记的强校验
+（下载侧删损坏文件、加载侧拒绝加载），未登记的只告警不阻断。
 
 注：DINOv2 架构已在 vosr/models/dinov2_vitl14.py 本地 vendored，
 只需下载权重文件，无需 clone facebookresearch/dinov2 仓库
@@ -31,8 +38,8 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import os
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -40,14 +47,23 @@ from typing import cast
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_ROOT = os.path.join(PROJECT_ROOT, "model")
+sys.path.insert(0, PROJECT_ROOT)
+
+from app.integrated_app.weights_manifest import (  # noqa: E402
+    MANIFEST_FILENAME,
+    STATUS_MISMATCH,
+    STATUS_OK,
+    WeightsManifest,
+)
 
 DEFAULT_REPO = "CSWRY/VOSR"
 DEFAULT_ENDPOINT = os.environ.get("HF_ENDPOINT", "https://hf-mirror.com")
 MODELSCOPE_BASE = "https://modelscope.cn/models/LULALULALU/VOSR_CKPT" "/resolve/master"
 
 # 每个 checkpoint 的文件清单（相对 model/ 的路径）。
-# 注：官方未逐文件公布 sha256，这里只登记文件名与来源；大小校验由
-# "已存在则跳过" 的幂等逻辑覆盖（损坏文件请手动删除后重下）。
+# sha256 校验由 model/WEIGHTS_SHA256.json 承担（见 weights_manifest.py）：
+# 官方未逐文件公布哈希 → 本地已有文件经 --record-manifest 登记，首次下载
+# 的文件在下载完成时钉入清单；此后下载跳过前与加载前都会强校验。
 CHECKPOINTS: dict[str, dict[str, object]] = {
     "VOSR2": {
         "name": "VOSR 2.0 (1.4B one-step)",
@@ -117,14 +133,6 @@ def _human(size: float) -> str:
     return f"{size:.1f} TB"
 
 
-def _sha256(path: str) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def _download(url: str, target: str) -> None:
     """流式下载，.part 断点续传（服务端不支持 Range 时整文件重下）。"""
     os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -158,10 +166,28 @@ def _download(url: str, target: str) -> None:
     os.replace(part, target)
 
 
-def _fetch(rel: str, endpoint: str, source: str = "auto") -> None:
+def _verify_or_pin(manifest: WeightsManifest, rel: str, target: str) -> None:
+    """对已有文件做清单校验：不一致删文件退出；未登记的钉入清单。"""
+    status = manifest.verify(rel, target)
+    if status == STATUS_OK:
+        print(f"[hash] {rel} sha256 校验通过")
+        return
+    if status == STATUS_MISMATCH:
+        os.remove(target)
+        raise SystemExit(
+            f"sha256 校验失败: {rel}（与 model/{MANIFEST_FILENAME} 记录不一致，"
+            "已删除损坏文件，请重跑本命令重新下载）"
+        )
+    entry = manifest.record(rel, target)
+    manifest.save(MODEL_ROOT)
+    print(f"[pin ] {rel} 首次登记 sha256={entry['sha256'][:12]}… -> {MANIFEST_FILENAME}")
+
+
+def _fetch(rel: str, endpoint: str, manifest: WeightsManifest, source: str = "auto") -> None:
     target = os.path.join(MODEL_ROOT, rel)
     if os.path.isfile(target):
-        print(f"[skip] {rel} 已存在（如需重下请先删除）")
+        print(f"[skip] {rel} 已存在")
+        _verify_or_pin(manifest, rel, target)
         return
     hf_base = f"{endpoint}/{DEFAULT_REPO}/resolve/main"
     hf_official = f"https://huggingface.co/{DEFAULT_REPO}/resolve/main"
@@ -178,6 +204,7 @@ def _fetch(rel: str, endpoint: str, source: str = "auto") -> None:
             print(f"[get ] {rel}")
             print(f"       <- {base.split('/resolve')[0]}")
             _download(url, target)
+            _verify_or_pin(manifest, rel, target)
             return
         except (urllib.error.URLError, OSError) as exc:
             last_err = exc
@@ -206,11 +233,40 @@ def main() -> None:
         "hf=只用 HuggingFace；modelscope=优先魔搭"
         "（国内实测快 5-8 倍）",
     )
+    parser.add_argument(
+        "--record-manifest",
+        action="store_true",
+        help="不下载：把指定检查点已存在文件的 sha256 补登记进 "
+        f"model/{MANIFEST_FILENAME}（首次建清单用）",
+    )
     args = parser.parse_args()
     endpoint = args.endpoint.rstrip("/")
 
     entry = CHECKPOINTS[args.checkpoint]
     print(f"检查点: {args.checkpoint} — {entry['name']}")
+    files = cast("list[str]", entry["files"])
+
+    manifest = WeightsManifest.load(MODEL_ROOT)
+
+    if args.record_manifest:
+        recorded = 0
+        missing = 0
+        for rel in files:
+            target = os.path.join(MODEL_ROOT, str(rel))
+            if not os.path.isfile(target):
+                missing += 1
+                print(f"[miss] {rel} 不存在，跳过登记")
+                continue
+            entry_data = manifest.record(str(rel), target)
+            recorded += 1
+            print(f"[rec ] {rel} sha256={entry_data['sha256'][:12]}…")
+        manifest.save(MODEL_ROOT)
+        print(
+            f"\n清单已更新: model/{MANIFEST_FILENAME}（本次登记 {recorded} 个，"
+            f"缺失 {missing} 个；未存在的文件待下载时自动钉入）"
+        )
+        return
+
     order = {
         "auto": f"{endpoint} → huggingface.co → modelscope",
         "hf": f"{endpoint} → huggingface.co",
@@ -219,9 +275,8 @@ def main() -> None:
     print(f"来源优先级: {order[args.source]}")
     print(f"目标: {MODEL_ROOT}\n")
 
-    # CHECKPOINTS 的值是 dict[str, object]（各检查点字段不一），此处按约定取文件清单
-    for rel in cast("list[str]", entry["files"]):
-        _fetch(str(rel), endpoint, args.source)
+    for rel in files:
+        _fetch(str(rel), endpoint, manifest, args.source)
 
     print("\n完成。可运行 python scripts/smoke_infer.py -i <图片> -o outputs/ -u 2 验证。")
 

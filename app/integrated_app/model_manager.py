@@ -57,15 +57,21 @@ class ModelManager:
         self.idle_unload_minutes = float(config.get("model.idle_unload_minutes", 15))
 
     # ── 盘查 ────────────────────────────────────────────────────────────────
+    def _required_files(self, name: str, ae_type: str) -> list[str]:
+        required = [p.format(name=name) for p in _REQUIRED_CKPT]
+        required += _REQUIRED_COMMON_QWEN if ae_type == "qwen" else _REQUIRED_COMMON_SD2
+        return required
+
     def scan(self) -> list[CheckpointInfo]:
         infos: list[CheckpointInfo] = []
         for name, cfg in self.checkpoints_cfg.items():
             cfg = cfg or {}
             ae_type = cfg.get("ae_type", "qwen")
-            required = list(_REQUIRED_CKPT)
-            required = [p.format(name=name) for p in required]
-            required += _REQUIRED_COMMON_QWEN if ae_type == "qwen" else _REQUIRED_COMMON_SD2
-            missing = [p for p in required if not os.path.isfile(os.path.join(self.model_root, p))]
+            missing = [
+                p
+                for p in self._required_files(name, ae_type)
+                if not os.path.isfile(os.path.join(self.model_root, p))
+            ]
             infos.append(
                 CheckpointInfo(
                     name=name,
@@ -85,6 +91,54 @@ class ModelManager:
             if info.name == name:
                 return info
         return None
+
+    # ── 权重完整性 ──────────────────────────────────────────────────────────
+    def _verify_weights(self, info: CheckpointInfo) -> None:
+        """加载前逐文件 sha256 校验（回应 2026-11-05 P1 #4 整改）。
+
+        语义（见 weights_manifest）：清单登记的文件强校验，不一致 = 权重损坏
+        或被改动，拒绝加载（fail closed）；未登记的只告警，不阻断
+        （官方未逐文件公布哈希，首次下载时由 download_model.py 钉入清单）。
+        """
+        from app.integrated_app.weights_manifest import (
+            STATUS_MISMATCH,
+            STATUS_UNREGISTERED,
+            WeightsManifest,
+        )
+
+        manifest = WeightsManifest.load(self.model_root)
+        required = self._required_files(info.name, info.ae_type)
+        mismatched: list[str] = []
+        unregistered: list[str] = []
+        started = time.time()
+        for rel in required:
+            abs_path = os.path.join(self.model_root, rel)
+            if not os.path.isfile(abs_path):
+                raise RuntimeError(
+                    f"checkpoint {info.name} 权重文件在加载前消失: {rel}；请重新运行 "
+                    "python scripts/download_model.py 下载"
+                )
+            status = manifest.verify(rel, abs_path)
+            if status == STATUS_MISMATCH:
+                mismatched.append(rel)
+            elif status == STATUS_UNREGISTERED:
+                unregistered.append(rel)
+        if mismatched:
+            raise RuntimeError(
+                f"checkpoint {info.name} 权重 sha256 校验失败: {', '.join(mismatched)}；"
+                "权重文件已损坏或被改动，请删除对应文件后重新运行 "
+                "python scripts/download_model.py 下载"
+            )
+        if unregistered:
+            logger.warning(
+                f"checkpoint {info.name} 有 {len(unregistered)} 个权重文件未登记 sha256"
+                f"（python scripts/download_model.py --record-manifest 可补登记）: "
+                f"{', '.join(unregistered)}"
+            )
+        logger.info(
+            f"权重 sha256 校验通过: {info.name}"
+            f"（{len(required)} 个文件，耗时 {time.time() - started:.1f}s）"
+        )
 
     # ── 引擎生命周期 ────────────────────────────────────────────────────────
     @property
@@ -112,6 +166,7 @@ class ModelManager:
                 f"checkpoint {name} 权重不完整，缺少: {', '.join(info.missing)}；"
                 "请运行 python scripts/download_model.py 下载"
             )
+        self._verify_weights(info)
 
         if self._engine is not None:
             self._engine.unload()

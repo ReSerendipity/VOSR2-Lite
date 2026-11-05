@@ -19,6 +19,7 @@
 | [release-governance.md](release-governance.md) | 发布 / 回滚治理：版本位同步、资产清单与 SHA-256 校验、draft 人工审核、回滚方式与演练节奏 |
 | [ROLLBACK_DRILL_2026-10-31.md](ROLLBACK_DRILL_2026-10-31.md) | 回滚演练记录（2026-10-31，资产回退 + 代码 revert 双演练，含缺口登记） |
 | [agent-contract.md](agent-contract.md) | 自动化 agent 协作契约（与 governance 模板逐字节一致） |
+| [tech-debt.md](tech-debt.md) | 技术债登记清单：债项 ID/级别/证据/处置方向/偿还状态（2026-11-05 整改建立） |
 
 ## 架构决策（ADR）
 

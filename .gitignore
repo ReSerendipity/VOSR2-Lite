@@ -19,6 +19,9 @@ WPy64-*/
 model/*
 !model/.gitkeep
 !model/README.md
+# 例外（有意纳入跟踪，勿改为 ignore）：权重逐文件 sha256 清单（2026-11-05 整改，
+# 见 app/integrated_app/weights_manifest.py），仅几 KB，下载侧校验与加载侧强校验共用
+!model/WEIGHTS_SHA256.json
 
 # ── 运行产物 ────────────────────────────────────────────────────────────────
 data/uploads/*

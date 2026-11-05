@@ -17,7 +17,7 @@ import os
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 import aiosqlite
 from loguru import logger
@@ -259,3 +259,16 @@ class HistoryDB:
         cursor = await self.db.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+    async def get_tasks_by_status(self, statuses: Sequence[str]) -> list[dict]:
+        """按状态集合取任务行（孤儿回收用，created_at 升序保证先来先跑）。"""
+        if not statuses:
+            return []
+        placeholders = ", ".join("?" for _ in statuses)
+        cursor = await self.db.execute(
+            # statuses 经参数化绑定（?），无拼接注入面
+            f"SELECT * FROM tasks WHERE status IN ({placeholders}) ORDER BY created_at",
+            tuple(statuses),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]

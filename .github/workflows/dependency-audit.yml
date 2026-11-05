@@ -1,0 +1,70 @@
+# 依赖漏洞主动扫描（回应 2026-11-05 评估报告 P1 #5「依赖漏洞躺平不更新 /
+# 无审计手段」，门禁 S2）。
+#
+# 为什么单独开一个 workflow：ci.yml 本轮是在途脏文件（禁区，不得触碰），
+# 本文件独立新增、不碰既有 CI 链；触发在 push/PR 之上叠加每周定期兜底，
+# 把「被动等 dependabot 升级」补成「主动扫已知漏洞库」。
+#
+# 扫描对象与门禁：pip-audit 对照 PyPI 漏洞库审计运行依赖（requirements.txt）；
+# 发现已知漏洞即非零退出 = 门禁失败。确需带病通过时用 --ignore-vuln <ID>
+# 逐条豁免，并按 SECURITY.md 流程先开 issue 登记豁免理由与复查期限。
+#
+# 锁文件面：requirements-lock.txt 由在途工作流生成中（本文件不改它）；
+# 审计对其做存在性回退——已入库则一并审计，未入库则跳过并说明。
+name: Dependency Audit (pip-audit)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "requirements.txt"
+      - "requirements-lock.txt"
+      - ".github/workflows/dependency-audit.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "requirements.txt"
+      - "requirements-lock.txt"
+      - ".github/workflows/dependency-audit.yml"
+  schedule:
+    - cron: "10 1 * * 1" # 每周一 01:10 UTC（错开周日 gitleaks 全历史兜底）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
+
+env:
+  # pip-audit 版本升级维护：只改这一处（PyPI 实测 2026-11-06 最新 2.10.1）
+  PIP_AUDIT_VERSION: "2.10.1"
+
+jobs:
+  pip-audit:
+    name: Audit Python dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # 唯一必要的外部 action，按家族纪律钉完整 commit SHA
+      #（SHA 与 gitleaks.yml 所钉 checkout@v4 一致；runner 自带 Python 3.12，
+      # 因此无需 setup-python——github.com 在整改会话环境不可达，无法实测
+      # 更多动作的钉版 SHA，宁可收敛动作面也不留未验证的钉版）
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Audit runtime dependencies (requirements.txt)
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "pip-audit==${PIP_AUDIT_VERSION}"
+          python3 -m pip_audit --version
+          # 发现已知漏洞退出非零 = 门禁；报告输出到任务日志
+          python3 -m pip_audit -r requirements.txt --progress-spinner off --desc off
+
+      - name: Audit locked dependencies (requirements-lock.txt, 若已入库)
+        run: |
+          if [ -f requirements-lock.txt ]; then
+            python3 -m pip_audit -r requirements-lock.txt --progress-spinner off --desc off
+          else
+            echo "requirements-lock.txt 尚未入库，跳过（锁文件面由在途工作流交付）"
+          fi

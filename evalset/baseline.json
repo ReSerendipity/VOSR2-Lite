@@ -1,0 +1,208 @@
+{
+  "schema": 1,
+  "created_at": "2026-11-06 01:58:30",
+  "evalset": {
+    "n_images": 16,
+    "hr_size": 256,
+    "lr_size": 64,
+    "upscale": 4,
+    "builder": "scripts/build_eval_set.py（合成模式，seed=20261105，16 种确定性图案）",
+    "note": "离线约束下用确定性合成图案冻结；属主可用 --from-images 换真实图集后重测基线"
+  },
+  "metrics_command": "python scripts/eval_quality.py --ref-dir evalset/hr --out-dir <输出目录>",
+  "engine_rerun_command": "python scripts/run_engine_eval.py --input-dir evalset/lr --output-dir outputs_eval && python scripts/eval_quality.py --ref-dir evalset/hr --out-dir outputs_eval",
+  "env": {
+    "os": "Windows-11-10.0.26300-SP0",
+    "python": "3.12.10",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "torch": "2.11.0+cu128",
+    "cuda_available": true,
+    "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "note": "引擎基线在维护者本机环境实测（torch 2.11.0+cu128，与 requirements.txt 钉版 2.10.0 存在小幅漂移）；复算时如需严格对齐请按 requirements-lock.txt 建环境"
+  },
+  "baselines": {
+    "bicubic_x4_reference": {
+      "method": "LR 经 PIL BICUBIC 放大 x4（scripts/build_eval_set.py 产线，产物在 evalset/bicubic_x4/）",
+      "psnr_mean_db": 30.5562,
+      "ssim_mean": 0.780024,
+      "psnr_min_db": 7.6971,
+      "ssim_min": 0.164067,
+      "per_image": [
+        {
+          "file": "01_grating_vertical.png",
+          "psnr_db": 34.88685358640564,
+          "ssim": 0.9851785530886348
+        },
+        {
+          "file": "02_grating_diagonal.png",
+          "psnr_db": 11.91141010244096,
+          "ssim": 0.34715021147072495
+        },
+        {
+          "file": "03_radial_gradient.png",
+          "psnr_db": 56.37168799108654,
+          "ssim": 0.9996267635162062
+        },
+        {
+          "file": "04_concentric_rings.png",
+          "psnr_db": 34.663058633809484,
+          "ssim": 0.986837090627499
+        },
+        {
+          "file": "05_checkerboard_coarse.png",
+          "psnr_db": 14.48266136319088,
+          "ssim": 0.6586867913401482
+        },
+        {
+          "file": "06_checkerboard_fine.png",
+          "psnr_db": 7.697141439619982,
+          "ssim": 0.33995579088476635
+        },
+        {
+          "file": "07_diagonal_stripes.png",
+          "psnr_db": 19.483246366455546,
+          "ssim": 0.6512259022131519
+        },
+        {
+          "file": "08_color_ramps.png",
+          "psnr_db": 49.23559815080626,
+          "ssim": 0.9996807947906443
+        },
+        {
+          "file": "09_gaussian_blobs.png",
+          "psnr_db": 54.73870078976532,
+          "ssim": 0.9981773641036016
+        },
+        {
+          "file": "10_noise_texture.png",
+          "psnr_db": 32.65564384541966,
+          "ssim": 0.7603131343617169
+        },
+        {
+          "file": "11_plaid.png",
+          "psnr_db": 41.46025769143998,
+          "ssim": 0.992970085379745
+        },
+        {
+          "file": "12_starburst.png",
+          "psnr_db": 19.039533191190174,
+          "ssim": 0.7275630264947344
+        },
+        {
+          "file": "13_random_circles.png",
+          "psnr_db": 34.29541802516124,
+          "ssim": 0.9668180268332911
+        },
+        {
+          "file": "14_random_rectangles.png",
+          "psnr_db": 29.42572261088257,
+          "ssim": 0.9247784570858888
+        },
+        {
+          "file": "15_chirp.png",
+          "psnr_db": 30.11751698343819,
+          "ssim": 0.9773538852651744
+        },
+        {
+          "file": "16_mixed_hires.png",
+          "psnr_db": 18.435466395654004,
+          "ssim": 0.16406652996159904
+        }
+      ]
+    },
+    "engine_VOSR2_onestep": {
+      "method": "VOSR2 检查点（1.4B 一步蒸馏），upscale=4 steps=1 seed=42 align=wavelet，scripts/run_engine_eval.py 批量推理",
+      "engine_load_seconds": 28.32,
+      "vram_gb": 3.35,
+      "median_per_image_seconds": 0.2,
+      "psnr_mean_db": 26.425,
+      "ssim_mean": 0.701624,
+      "psnr_min_db": 6.0243,
+      "ssim_min": 0.005778,
+      "per_image": [
+        {
+          "file": "01_grating_vertical.png",
+          "psnr_db": 16.476077590141298,
+          "ssim": 0.5861581080277284
+        },
+        {
+          "file": "02_grating_diagonal.png",
+          "psnr_db": 13.248994320452267,
+          "ssim": 0.5682232574517329
+        },
+        {
+          "file": "03_radial_gradient.png",
+          "psnr_db": 48.16181709518751,
+          "ssim": 0.99791924012239
+        },
+        {
+          "file": "04_concentric_rings.png",
+          "psnr_db": 20.137364384172734,
+          "ssim": 0.7358188514758879
+        },
+        {
+          "file": "05_checkerboard_coarse.png",
+          "psnr_db": 18.631563559356085,
+          "ssim": 0.727551897281732
+        },
+        {
+          "file": "06_checkerboard_fine.png",
+          "psnr_db": 6.0242774287344805,
+          "ssim": 0.005778200166305255
+        },
+        {
+          "file": "07_diagonal_stripes.png",
+          "psnr_db": 21.635781753018705,
+          "ssim": 0.8651562846219856
+        },
+        {
+          "file": "08_color_ramps.png",
+          "psnr_db": 50.50047260789733,
+          "ssim": 0.9981237873581239
+        },
+        {
+          "file": "09_gaussian_blobs.png",
+          "psnr_db": 50.72675101239739,
+          "ssim": 0.9980184373713448
+        },
+        {
+          "file": "10_noise_texture.png",
+          "psnr_db": 28.459594428626104,
+          "ssim": 0.48321798776355984
+        },
+        {
+          "file": "11_plaid.png",
+          "psnr_db": 17.113329933288888,
+          "ssim": 0.44201273881013126
+        },
+        {
+          "file": "12_starburst.png",
+          "psnr_db": 20.66262004223904,
+          "ssim": 0.8507220960561307
+        },
+        {
+          "file": "13_random_circles.png",
+          "psnr_db": 35.95358318474231,
+          "ssim": 0.9822728910199742
+        },
+        {
+          "file": "14_random_rectangles.png",
+          "psnr_db": 32.14740031464701,
+          "ssim": 0.9698777359236429
+        },
+        {
+          "file": "15_chirp.png",
+          "psnr_db": 25.928892460634543,
+          "ssim": 0.9490748904409356
+        },
+        {
+          "file": "16_mixed_hires.png",
+          "psnr_db": 16.9909386338819,
+          "ssim": 0.06605190731699688
+        }
+      ],
+      "interpretation": "合成图案集上引擎逐像素保真低于 bicubic 参照（一步扩散模型以感知质量为目标，非 PSNR 最优）；本基线用途是回归锚点：后续引擎/权重/参数变更后复算，指标显著劣化即回归"
+    }
+  }
+}

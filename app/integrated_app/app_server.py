@@ -139,7 +139,18 @@ async def lifespan(app: FastAPI):
     history_db: HistoryDB = app.state.history_db
     await history_db.initialize()
 
+    # 孤儿回收与续跑（崩溃恢复）：必须在队列启动前对账——重新入队的任务
+    # 随 worker 启动即刻执行，不会被启动窗口期内的新上传插队。
+    from app.integrated_app.orphan_recovery import recover_orphans
+
     task_queue: TaskQueue = app.state.task_queue
+    recovery = await recover_orphans(history_db, task_queue, app.state.model_manager)
+    if recovery["requeued"] or recovery["marked_failed"]:
+        logger.info(
+            f"崩溃恢复: 续跑 {recovery['requeued']} 个遗留任务，"
+            f"回收 {recovery['marked_failed']} 个中断任务"
+        )
+
     await task_queue.start()
 
     idle_minutes = int(config.get("model", {}).get("idle_unload_minutes", 15) or 0)
