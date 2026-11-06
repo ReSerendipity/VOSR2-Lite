@@ -20,8 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/portable_bundle_lib.ps1` + `scripts/build_desktop_bundle.ps1`：桌面发布打包脚本。
   数据卷归档根为 `app/`（安装器解到 `$INSTDIR`），增量包归档根为 `app/` 的内容（壳直接解到 `app.new/`）。
 - **瘦包分发 + 程序内下载管理**（ADR-0005）：安装包不再含 torch 运行时与模型权重。
-  - `app/integrated_app/download_service.py`：环境包/模型安装（分卷下载 → 逐卷 SHA256 → 合并 →
-    解压 → 离线 `pip install --no-index` → 写 `RUNTIME.json`）、任务管理（后台线程 + 取消）、卸载
+  - `app/integrated_app/download_service.py`：环境包/模型安装（**默认在线**：子进程 pip 直连官方
+    cuXXX 索引 + PyPI 装 torch 家族，写 `RUNTIME.json`；分卷离线路径保留：逐卷下载 → 逐卷 SHA256 →
+    合并 → 解压 → `pip install --no-index --find-links`）、任务管理（后台线程 + 取消）、卸载
     （VAE/torch_cache 属共享资产，只删目标目录）。
   - `app/integrated_app/routes/downloads.py`：状态/清单/启动/进度/取消/卸载 API，
     重操作加回环白名单守卫。**顶层禁止 `import torch`**（引导态下下载页必须打得开）。
@@ -39,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   revert 冲突处置与合成回滚（版本位 0.2.0 断言 + ruff / pytest）；GPU 真实推理
   冒烟通过（18.4 s，收尾显存回落 0 MiB）。`docs/release-governance.md` §5 补演练
   留痕与季度演练节奏。已登记缺口：v0.2.0 无 Release 资产（回滚目标 v0.2.1 / v0.1.0）。
+- **关于页社交平台链接卡片**：`templates/settings.html` 新增社交卡片区块，简 / 繁 / 英三语
+  文案同步（`locales/zh.json`、`zh-TW.json`、`en.json`）。
+- **工程与治理文件**（§12.5 通用工程件）：`ARCHITECTURE.md`（分层与数据流）、
+  `.github/CODEOWNERS`、第二层社区健康文件 `CODE_OF_CONDUCT.md` / `SECURITY.md`；
+  `docs/README.md` 补文档索引，并同步 ADR-0004 / `release-governance.md` 里的历史引用路径。
 
 ### Changed
 
@@ -47,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **分发形态变更**（ADR-0005）：`VOSR2Lite-Data.7z.001..` 由「含运行时与全量模型」变为
   「仅含应用代码 + 引导解释器」。已装用户如需离线使用，请自行预置 `app/model/` 与
   `app/bootstrap/` 的 torch；新装用户首次启动后需在「下载管理」页安装环境与模型。
+- **环境安装默认改「在线拉取」**（`downloads_catalog.json` `runtime.install_mode = "online"`）：
+  仓库不再托管 GB 级环境分卷——`volumes` 置空，`size_bytes` 只表示**安装后磁盘占用**估算
+  （随该字段新增 `size_bytes_kind: "installed_footprint"` 标注），后端新增
+  `download_service._install_runtime_online`：子进程 pip 直连官方索引装 torch 家族，
+  按退出码 / 取消分档报错，并用 `PIP_CONFIG_FILE=NUL` 屏蔽用户镜像配置（防止 torch 被顶成 `+cpu`）。
+  分卷离线安装路径**未删除**，把 `install_mode` 切回非 online 即生效。
 
 ### Fixed
 
@@ -56,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   改为 `File /oname=7za.exe` 统一嵌入名，编译机用 `7z.exe` 或 `7za.exe` 均可。
   真机验证：静默安装 `D:\VOSR2Lite` 17264 文件 / 538 MB，壳日志 `运行时形态: Bootstrap，
   导航入口: 'downloads'`，`/downloads` 与 `/api/downloads/status` 均 200。
+- **P1 五项整改**（对应 2026-11-05 评估报告）：画质回归可复算（`evalset/` 16 张冻结图 +
+  `baseline.json` + `scripts/eval_quality.py`）、崩溃后僵尸任务回收（`orphan_recovery.py`
+  并对账 lifespan，`processing` 不再永停）、权重逐文件哈希校验（`weights_manifest.py` +
+  `model_manager._verify_weights`，下载侧 verify/pin）、依赖漏洞主动扫描
+  （`dependency-audit.yml` 跑 pip-audit，周更兜底）、债项清单 `docs/tech-debt.md`（含维护规则）。
+- **数据卷缺模型下载脚本**：`scripts/build_desktop_bundle.ps1` 把 `scripts/download_model.py`
+  一并打进数据卷，瘦包用户装完环境后可直接按脚本拉权重，不必另行获取。
 
 ## [0.2.1] - 2026-10-28
 
