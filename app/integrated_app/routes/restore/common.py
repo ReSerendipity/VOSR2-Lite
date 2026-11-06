@@ -15,6 +15,14 @@ from fastapi import Form, HTTPException
 from app.integrated_app.history_db import HistoryDB
 from app.integrated_app.security.magic_check import ALLOWED_IMAGE_EXTENSIONS
 
+# 预留位（TD-006）：视频修复**尚未实现**，全仓无任何读取点——`parse_restore_params`
+# 只认图片参数，上传侧校验走 `security.magic_check.ALLOWED_IMAGE_EXTENSIONS`。
+# 保留本常量唯一的作用：在动手前把「什么算视频」的扩展名口径钉住，免得实现时各写一份。
+# 真正启用视频（即可被路由）需三条同时满足，缺一条就会出现「界面能选、后端静默失败」：
+#   1) `security/magic_check.py` 增加对应容器的魔数校验（按内容判，不只看后缀）；
+#   2) `history_db.HistoryRecord.task_type` 的 `"video"` 分支真正落库并在读路径还原；
+#   3) 引擎侧支持逐帧寻址 + 音频轨回灌（当前 restore 管线按单帧图像建任务）。
+# 三条在 2027-06-30 前仍未满足的，按 TD-006 处置方向直接删除本常量。
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
 
 

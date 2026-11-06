@@ -45,7 +45,9 @@ _TASK_UPDATABLE_COLUMNS = {
 class HistoryRecord:
     input_file: str
     output_file: str = ""
-    task_type: str = "image"  # image | video（预留）
+    # `"video"` 为预留值，当前无任何写入方与读路径（TD-006）；启用条件见
+    # `routes/restore/common.py` 里 `ALLOWED_VIDEO_EXTENSIONS` 的注释，三缺一勿开。
+    task_type: str = "image"  # image | video（预留，未实现）
     status: str = "pending"
     checkpoint: str = ""
     params_json: str = "{}"
