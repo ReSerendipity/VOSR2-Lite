@@ -27,9 +27,20 @@ Copyright 2026 ReSerendipity。许可证：Apache-2.0（见 `LICENSE`）。
 | Qwen-Image-vae-2d | 上游由 Qwen-Image 3D 因果 VAE 转换的 2D 变体（Wan2.1 encoder + Qwen-Image decoder 微调） | 遵循 Wan2.1（Apache-2.0）与 Qwen-Image 上游条款 |
 | stable-diffusion-2-1-base VAE（0.5B 模型用） | https://huggingface.co/stabilityai/stable-diffusion-2-1-base | OpenRAIL++ |
 | sd21_lwdecoder.pth（0.5B 模型用） | CSWRY/VOSR | Apache-2.0 |
-| DINOv2 权重（dinov2_vitl14_pretrain.pth 等） | https://github.com/facebookresearch/dinov2 | DINOv2 仓库条款（含附加模型许可，见其 LICENSE 文件） |
+| DINOv2 权重（dinov2_vitl14_pretrain.pth、dinov2_vitb14_pretrain.pth） | https://github.com/facebookresearch/dinov2 | **Apache-2.0**（上游 README「License」节原文：DINOv2 code and model weights are released under the Apache License 2.0） |
 
 请在再分发时保留上述全部声明，并遵守各组件的许可条款。
+
+### DINOv2 许可边界（2026-11-08 具名）
+
+- 本项目只用两个**标准预训练主干**：`dinov2_vitl14_pretrain.pth`（1.4B 系，`enc_type=dinov2l`）
+  与 `dinov2_vitb14_pretrain.pth`（0.5B 系，`enc_type=dinov2b`）。按上游许可声明，代码与
+  模型权重同为 Apache-2.0，无附加非商用条款。
+- 上游仓库里另有两类**不适用 Apache-2.0** 的变体：`XRay-DINO`、`cell_dino`（代码与权重
+  另按 FAIR Noncommercial Research License / CC BY-NC 系，仅限研究用途）。本项目不下载、
+  不使用这两个变体；若将来引入，须单独登记许可并另行评审。
+- 义务边界：上表权重**运行时下载、不随仓库或安装包分发**，故再分发本项目时不承担「连带
+  分发权重」的义务；但本 NOTICE 与上表归属声明必须原样保留。
 
 ## 运行时依赖
 

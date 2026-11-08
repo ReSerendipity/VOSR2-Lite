@@ -39,7 +39,9 @@ python scripts/download_model.py --checkpoint VOSR_0.5B_os --source modelscope
 
 - **DINOv2**：`vosr/models/dinov2_vitl14.py` 本地复刻了 ViT-L/14 与 ViT-B/14
   （来自 ComfyUI-VOSR2 社区节点，Apache-2.0），只需权重文件，无需 clone
-  facebookresearch/dinov2 仓库。`enc_type` 由检查点 `args.json` 决定。
+  facebookresearch/dinov2 仓库。权重本身亦为 **Apache-2.0**（上游 README「License」节：
+  code and model weights are released under the Apache License 2.0；非商用的
+  `XRay-DINO` / `cell_dino` 变体本项目不用，边界见 `NOTICE`）。`enc_type` 由检查点 `args.json` 决定。
 - **0.5B 系的解码**：轻量解码器结构来自上游 `models/light_decoder.py`
   （已 vendor 到 `vosr/models/light_decoder.py`），权重 `sd21_lwdecoder.pth`
   由下载脚本获取；缺权重时引擎回退 SD2.1 VAE 自带解码器（数值一致、更慢）。

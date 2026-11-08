@@ -26,7 +26,7 @@
 | TD-010 | P2 | downloads_catalog 字段自相矛盾 | `app/downloads_catalog.json` runtime 节：`volumes: []`（在线模式无分卷）与 `size_bytes: 2907703182`、`base_url`（仍指 modelscope runtime 仓）并存 | 消费方读到互相矛盾的分卷元数据 | online 模式定稿后清理离线残留字段 | 已偿还（2026-11-06）：保留 `size_bytes`（`templates/downloads.html:136` 用它显示「可安装：… / 2.9 GB」），新增机器可读 `size_bytes_kind: installed_footprint` 标注其为**安装后磁盘占用估算**而非下载体积；`note` 明确「`volumes` 为空是 online 模式的设计结果、后端在 online 分支不读取它」（`download_service.py:254` 提前返回）。`base_url` 保留作离线模式回退指针 |
 | TD-011 | P2 | 主分发物 Setup.exe 本地构建：无 CI 构建、无 provenance、无代码签名 | `scripts/installer/*.exe` 为 `.gitignore` 排除的本地产物；`release.yml` 不构建 Setup；`docs/发布与分发-单文件安装包.md` §一 把校验物写成「建议附带」 | 主分发物投毒无法溯源 | 打包进 CI 出 SHA256+provenance；代码签名需证书采购 | 未偿还（**需属主裁决**：证书采购属外部依赖，不在整改单范围） |
 | TD-012 | P2 | 安装器级回滚路径未演练 | `docs/ROLLBACK_DRILL_2026-10-31.md` §5「缺口与未覆盖项」（:128 起）自登记 | 下次回滚若走安装器路径，预案未经验证 | 2027-01 季度演练纳入 Setup 重装回滚 | 未偿还（已排期：随季度演练节奏收口） |
-| TD-013 | P2 | DINOv2 权重许可未具名 | `NOTICE`「DINOv2 仓库条款（含附加模型许可，见其 LICENSE 文件）」未给出具体许可名 | 再分发或许可变化时义务边界不清 | 具名模型许可并写明「权重不随包分发」的义务边界 | 未偿还（**需属主裁决**：许可证判定） |
+| TD-013 | P2 | DINOv2 权重许可未具名 | `NOTICE`「DINOv2 仓库条款（含附加模型许可，见其 LICENSE 文件）」未给出具体许可名 | 再分发或许可变化时义务边界不清 | 具名模型许可并写明「权重不随包分发」的义务边界 | **已偿还（2026-11-08）**：`NOTICE` 表内具名为 **Apache-2.0** 并引上游 README 原文；新增「DINOv2 许可边界」小节写明三件事——① 本项目只用标准 ViT-L/14、ViT-B/14 预训练主干（与 `model/README.md`、`_weights.py` 的 `enc_type` 一致）；② 上游 `XRay-DINO` / `cell_dino` 属非商用变体，本项目不下载不使用；③ 权重运行时下载、不随包分发，再分发义务止于保留 NOTICE 与归属声明。许可证判定结论来自上游仓库 README「License」节与 `LICENSE`（Apache-2.0 全文），非推测 |
 | TD-014 | P3 | 无 E2E/UI 测试层 | 无 Playwright/浏览器测试；desktop 壳窗口交互无 UI 自动化 | 前端回归靠人肉 | 「上传→推理(mock)→对比→下载」主旅程 Playwright 化 | 未偿还（长期建设） |
 
 ## 与评估报告的对账说明
