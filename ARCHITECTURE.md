@@ -24,7 +24,7 @@
 | `app` | `app/` | 77 | `app/__init__.py`, `app/downloads_catalog.json`, `app/integrated_app/__init__.py` |
 | `desktop` | `desktop/` | 54 | `desktop/README.md`, `desktop/package.json`, `desktop/src-tauri/Cargo.lock` |
 | 根级文件 | `/` | 16 | `.editorconfig`, `.gitattributes`, `.gitignore` |
-| `docs` | `docs/` | 14 | `docs/ROLLBACK_DRILL_2026-10-31.md`, `docs/USER_AGREEMENT.md`, `docs/adr/0004-tauri-desktop-shell.md` |
+| `docs` | `docs/` | 13 | `_archive/执行记录/2026-11/ROLLBACK_DRILL_2026-10-31.md`, `docs/USER_AGREEMENT.md`, `docs/adr/0004-tauri-desktop-shell.md` |
 | `vosr` | `vosr/` | 12 | `vosr/UPSTREAM.md`, `vosr/__init__.py`, `vosr/models/__init__.py` |
 | `scripts` | `scripts/` | 11 | `scripts/build_desktop_bundle.ps1`, `scripts/build_runtime_bundle.py`, `scripts/check_layout.py` |
 | `tests` | `tests/` | 9 | `tests/conftest.py`, `tests/test_api_extended.py`, `tests/test_app_smoke.py` |
