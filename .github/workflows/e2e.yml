@@ -1,0 +1,62 @@
+# .github/workflows/e2e.yml
+# 浏览器级 E2E（TD-014）：「上传 → 推理(mock) → 对比 → 下载」+ 壳桥接静态契约。
+#
+# 为什么单独一个工作流、而且不挂在每次 push 上：
+#   1. 成本：几百 MB 依赖 + Chromium + 约 15 分钟，塞进 ci.yml 会让每次 push 都变慢；
+#   2. 稳定性：进度中间态、下载事件这类断言对共享 runner 的时序抖动敏感，挂 push 容易
+#      把「偶发红」变成日常噪声，最后被大家习惯性忽略；
+#   3. 分工：日常回归由 `pytest tests`（ci.yml）承担，本工作流按周给一次「真浏览器里的
+#      主旅程仍然通」的权威结论，并支持手动触发做发版前复验。
+#
+# 触发：workflow_dispatch 手动 / 每周一 03:00 UTC 定时。
+name: E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1" # 每周一 03:00 UTC（北京时间 11:00）
+
+permissions:
+  contents: read
+
+# E2E 有端口与浏览器进程，同一 ref 上不并行；push 语义下不适用（仅手动与定时）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # E2E 不跑真推理，但仍需 CPU torch：app 的路由模块在导入期会牵到 engines
+      # （RestoreParams 来自 engines.vosr2_engine），缺 torch 会在收集阶段就失败。
+      - name: Install CPU PyTorch (smaller; no GPU needed for E2E)
+        run: |
+          pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-e2e.txt
+
+      - name: Install Playwright browsers
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run E2E (browser journey + desktop bridge contract)
+        run: pytest tests/e2e tests/test_desktop_bridge_contract.py -q
+
+      - name: Upload pytest output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-pytest-output
+          path: |
+            .pytest_cache/v/cache/lastfailed
+          if-no-files-found: ignore

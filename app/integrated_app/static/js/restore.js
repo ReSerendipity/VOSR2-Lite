@@ -609,7 +609,11 @@
                 showResult(lastOk.taskId, { size: lastOk.size });
             }
             if (failed) {
-                finishWithError(t('restore.batch_failed', '有任务失败') + `: ${failed}`);
+                // 单张失败时把服务端的 reason 上屏。原来只显示「有任务失败: 1」，
+                // 用户看不到为什么失败（队列行在单文件时又是隐藏的，等于原因被吞掉）。
+                const firstErr = state.files.find(f => f.status === 'failed' && f.error);
+                const detail = single && firstErr ? `: ${firstErr.error}` : `: ${failed}`;
+                finishWithError(t('restore.batch_failed', '有任务失败') + detail);
             } else if (state.cancelRequested && !lastOk) {
                 VOSR2.toast(t('restore.cancelled', '已取消'), 'info');
             }
