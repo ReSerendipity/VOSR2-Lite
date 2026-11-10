@@ -601,6 +601,18 @@
                 refreshRow(item);
             }
 
+            // 取消后**未执行**的项：循环只在开头 break，不回写状态的话它们会一直
+            // 停在 idle（显示「排队中」），看起来像「还在等」。统一标成「已取消」，
+            // 与真正跑了一半被取消的那张同文案；不计入失败，重试会被 reset 回 idle。
+            if (state.cancelRequested) {
+                state.files.forEach(it => {
+                    if (it.status === 'idle') {
+                        it.status = 'cancelled';
+                        refreshRow(it);
+                    }
+                });
+            }
+
             stopTimer();
             el.progressCard.hidden = true;
             el.btnStart.disabled = false;

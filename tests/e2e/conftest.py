@@ -94,11 +94,53 @@ def _wait_until(predicate: Any, timeout: float, interval: float = 0.05) -> bool:
     return predicate()
 
 
+def _launch(app: Any, label: str) -> SimpleNamespace:
+    """在后台线程起一个真 uvicorn，等 lifespan 真的就绪后返回句柄。"""
+    import uvicorn
+
+    port = _free_port()
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app,
+            host="127.0.0.1",
+            port=port,
+            log_level="warning",
+            lifespan="on",
+            access_log=False,
+        )
+    )
+    thread = threading.Thread(target=server.run, name=f"e2e-uvicorn-{label}", daemon=True)
+    thread.start()
+
+    if not _wait_until(lambda: bool(server.started), timeout=30.0):
+        _halt(server, thread)
+        pytest.fail(f"E2E 服务（{label}）未能在 30 秒内启动（uvicorn 线程未就绪）")
+
+    return SimpleNamespace(server=server, thread=thread, base_url=f"http://127.0.0.1:{port}")
+
+
+def _wait_restore_ready(base_url: str, label: str) -> None:
+    """``server.started`` 只说明 lifespan 起了，再打一次首页确认真能应答。"""
+    import httpx
+
+    def _ready() -> bool:
+        try:
+            return httpx.get(f"{base_url}/restore", timeout=2.0).status_code == 200
+        except Exception:
+            return False
+
+    if not _wait_until(_ready, timeout=15.0, interval=0.2):
+        pytest.fail(f"E2E 服务（{label}）已启动但 {base_url}/restore 不可访问")
+
+
+def _halt(server: Any, thread: threading.Thread) -> None:
+    server.should_exit = True
+    thread.join(10)
+
+
 @pytest.fixture(scope="session")
 def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[SimpleNamespace]:
     """起一个真 uvicorn（桩引擎、临时目录、独立 history.db），供浏览器连。"""
-    import uvicorn
-
     uploads = tmp_path_factory.mktemp("e2e-uploads")
     outputs = tmp_path_factory.mktemp("e2e-outputs")
     exports = tmp_path_factory.mktemp("e2e-exports")
@@ -143,50 +185,66 @@ def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[SimpleNames
         }
         app = create_app(config)
 
-        port = _free_port()
-        server = uvicorn.Server(
-            uvicorn.Config(
-                app,
-                host="127.0.0.1",
-                port=port,
-                log_level="warning",
-                lifespan="on",
-                access_log=False,
-            )
-        )
-        thread = threading.Thread(target=server.run, name="e2e-uvicorn", daemon=True)
-        thread.start()
-
-        base_url = f"http://127.0.0.1:{port}"
-        if not _wait_until(lambda: bool(server.started), timeout=30.0):
-            server.should_exit = True
-            thread.join(5)
-            pytest.fail("E2E 服务未能在 30 秒内启动（uvicorn 线程未就绪）")
-
-        # server.started 只说明 lifespan 起了，再打一次首页确认真能应答。
-        import httpx
-
-        def _ready() -> bool:
-            try:
-                return httpx.get(f"{base_url}/restore", timeout=2.0).status_code == 200
-            except Exception:
-                return False
-
-        if not _wait_until(_ready, timeout=15.0, interval=0.2):
-            server.should_exit = True
-            thread.join(5)
-            pytest.fail(f"E2E 服务已启动但 {base_url}/restore 不可访问")
+        runtime = _launch(app, "default")
+        _wait_restore_ready(runtime.base_url, "default")
 
         yield SimpleNamespace(
-            base_url=base_url,
+            base_url=runtime.base_url,
             uploads=str(uploads),
             outputs=str(outputs),
+            exports=str(exports),
             stub=stub,
+            config=config,
+            work=str(work),
         )
 
-        server.should_exit = True
-        thread.join(10)
-        assert not thread.is_alive(), "uvicorn 线程未能优雅退出"
+        _halt(runtime.server, runtime.thread)
+        assert not runtime.thread.is_alive(), "uvicorn 线程未能优雅退出"
+    finally:
+        mp.undo()
+
+
+@pytest.fixture(scope="session")
+def e2e_server_csrf(e2e_server: SimpleNamespace) -> Iterator[SimpleNamespace]:
+    """同一套临时目录与桩引擎，但 ``runtime.security.csrf.enable=true`` 的服务。
+
+    为什么另起一个服务而不是改默认配置：CSRF 只在 ``create_app()`` 时按开关装配，
+    默认服务必须保持「关闭」形态（其余用例与线上默认一致），同一个 app 实例上加不了
+    第二次中间件。两个服务**共用**上传/输出/导出目录与桩引擎，于是这里同样用
+    「目录快照差集」判断本次落盘；历史库各自独立（同一个 sqlite 文件被两个服务同时
+    写会撞锁）。
+    """
+    import copy
+
+    from app.integrated_app.app_server import create_app
+
+    mp = pytest.MonkeyPatch()
+    try:
+        # 固定 32 字节 hex 密钥：既让用例能离线复算签名（证明 cookie 是服务端签的、
+        # 不是随机串），也避免往仓里的 data/.vosr2_secret 落一份密钥文件。
+        secret_key_hex = "ee" * 32
+        mp.setenv("VOSR2_SECRET_KEY", secret_key_hex)
+
+        config = copy.deepcopy(e2e_server.config)
+        config["history"] = {"db_path": os.path.join(e2e_server.work, "e2e_history_csrf.db")}
+        security = config.setdefault("runtime", {}).setdefault("security", {})
+        security["csrf"] = {"enable": True}
+        app = create_app(config)
+
+        runtime = _launch(app, "csrf")
+        _wait_restore_ready(runtime.base_url, "csrf")
+
+        yield SimpleNamespace(
+            base_url=runtime.base_url,
+            uploads=e2e_server.uploads,
+            outputs=e2e_server.outputs,
+            exports=e2e_server.exports,
+            stub=e2e_server.stub,
+            secret_key_hex=secret_key_hex,
+        )
+
+        _halt(runtime.server, runtime.thread)
+        assert not runtime.thread.is_alive(), "CSRF E2E 服务线程未能优雅退出"
     finally:
         mp.undo()
 

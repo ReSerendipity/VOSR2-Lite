@@ -58,13 +58,25 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install "pip-audit==${PIP_AUDIT_VERSION}"
           python3 -m pip_audit --version
+          # 已知漏洞逐条豁免（TD-003 取方案 A，引入日期 2026-11-09；仅以下两条，其余一律仍然拦）：
+          #   PYSEC-2026-139  torch 2.10.0：无修复版本（advisory 范围止于 2.10.0，上游未发新版）。
+          #   PYSEC-2025-194  torch 2.10.0：修复版 2.13.0，但 RTX 50 系（sm_120）只认 cu128 轮子，
+          #                   2.13.0 的 cu128 构建尚未发布 → 本仓不可达（钉版原因见 requirements.txt:3-4）。
+          # 复查期限：2027-01-31 与「torch 2.13.0+cu128 发布」二者先到为准。
+          # 复查动作：升级到 cu128 的 torch>=2.13.0 → 删掉下面两条 --ignore-vuln → 重跑本 workflow 确认转绿。
           # 发现已知漏洞退出非零 = 门禁；报告输出到任务日志
-          python3 -m pip_audit -r requirements.txt --progress-spinner off --desc off
+          python3 -m pip_audit -r requirements.txt --progress-spinner off --desc off \
+            --ignore-vuln PYSEC-2026-139 \
+            --ignore-vuln PYSEC-2025-194
 
       - name: Audit locked dependencies (requirements-lock.txt, 若已入库)
         run: |
           if [ -f requirements-lock.txt ]; then
-            python3 -m pip_audit -r requirements-lock.txt --progress-spinner off --desc off
+            # 锁文件同样钉 torch==2.10.0（requirements-lock.txt:55），豁免与上一步完全同两条、
+            # 同期限（2027-01-31 / torch 2.13.0+cu128 先到为准）、同复查动作——不加新豁免。
+            python3 -m pip_audit -r requirements-lock.txt --progress-spinner off --desc off \
+              --ignore-vuln PYSEC-2026-139 \
+              --ignore-vuln PYSEC-2025-194
           else
             echo "requirements-lock.txt 尚未入库，跳过（锁文件面由在途工作流交付）"
           fi
