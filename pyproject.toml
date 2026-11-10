@@ -7,8 +7,9 @@ requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [{ name = "ReSerendipity" }]
 dependencies = [
-    "torch>=2.7.0",
-    "torchvision>=0.22.0",
+    # RTX 50 系（sm_120）实测口径：torch 2.10.0+cu128；与 requirements.txt 的精确钉版一致。
+    "torch==2.10.0",
+    "torchvision==0.25.0",
     "diffusers>=0.35.0",
     "accelerate>=1.1.0",
     "einops>=0.8.0",

@@ -3,7 +3,8 @@
 > 治理规范：[ReSerendipity/.github/governance](https://github.com/ReSerendipity/.github/tree/main/governance)
 
 本目录是 VOSR2-Lite 的入库文档区（`docs/` 纯入库语义，见治理规范 §13.1）。
-对外入口见根 [README.md](../README.md)；本地维护者说明在 `local/README.internal.md`（本地文档，未随仓库发布）。
+对外入口见根 [README.md](../README.md)；全仓文档总索引见 [INDEX.md](INDEX.md)。
+（本仓无 `local/README.internal.md`，见 `AGENTS.md` §0。）
 
 ## 使用文档
 
@@ -11,6 +12,8 @@
 |---|---|
 | [用户手册.md](用户手册.md) | 面向使用者的完整手册：参数怎么选、查看器操作、安全开关、故障排查、命令行工具 |
 | [USER_AGREEMENT.md](USER_AGREEMENT.md) | 使用合规声明：生成式超分的固有局限与使用边界 |
+| [e2e-testing.md](e2e-testing.md) | 浏览器级 E2E 测试层：跑法、断言清单、负控记录与刻意未覆盖面 |
+| [安装包构建与溯源.md](安装包构建与溯源.md) | 主分发物 Setup.exe 的构建、SHA256SUMS / provenance 强制校验与可复现实测口径（TD-011） |
 
 ## 发布与治理
 
@@ -28,8 +31,8 @@
 | [adr/0004-tauri-desktop-shell.md](adr/0004-tauri-desktop-shell.md) | Accepted（决策 4 已被 ADR-0005 取代） | 对外分发形态采用 Tauri v2 桌面壳 |
 | [adr/0005-slim-installer-with-in-app-downloads.md](adr/0005-slim-installer-with-in-app-downloads.md) | Accepted | 安装包瘦身为不含环境与模型，改由程序内下载管理页按需获取 |
 
-## 分发形态（定案中）
+## 分发形态（现行）
 
 | 文档 | 状态 | 内容 |
 |---|---|---|
-| [发布与分发-单文件安装包.md](发布与分发-单文件安装包.md) | 2026-10-31 定案 / WIP | 单文件安装包 + 环境/模型自助下载（含 runtime-v1 环境包独立发布与模型分发口径） |
+| [发布与分发-单文件安装包.md](发布与分发-单文件安装包.md) | 现行（2026-11-01 在线安装口径） | 单文件安装包 + 环境/模型自助下载；环境默认在线安装（分卷仅作离线路径）+ 模型分发口径 |

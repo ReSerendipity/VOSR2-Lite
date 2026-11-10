@@ -1,7 +1,7 @@
 # 架构 — VOSR2-Lite
 
 > 治理定位：`delivery=release`、`lifecycle=active`（`governance/desired-state.json`）。
-> 本文按 2026-11-03 的实际目录结构生成；数据流与边界须由维护者在实现变更时同步复核。
+> 本文按 2026-11-03 的实际目录结构生成，2026-11-10 复核文件数；数据流与边界须由维护者在实现变更时同步复核。
 
 ## 1. 定位
 
@@ -10,29 +10,30 @@
 ## 2. 组件与依赖方向
 
 ```text
-应用层：app/ (77)、desktop/ (54)
-工具层：scripts/ (11)
-资产层：model/ (2)
-测试层：tests/ (9)
-支撑层：docs/ (14)、.github/ (8)
-其他层：vosr/ (12)、data/ (2)、.githooks/ (1)、logs/ (1)、outputs/ (1)
-根级层：根级文件 (16)
+应用层：app/ (79)、desktop/ (54)
+工具层：scripts/ (16)
+资产层：model/ (3)
+测试层：tests/ (21)
+支撑层：docs/ (17)、.github/ (10)
+其他层：vosr/ (12)、data/ (2)、.githooks/ (1)、logs/ (1)、outputs/ (1)、_archive/ (2)
+根级层：根级文件 (21)
 ```
 
 | 组件 | 目录 | 文件数 | 代表文件 |
 |---|---|---|---|
-| `app` | `app/` | 77 | `app/__init__.py`, `app/downloads_catalog.json`, `app/integrated_app/__init__.py` |
+| `app` | `app/` | 79 | `app/__init__.py`, `app/downloads_catalog.json`, `app/integrated_app/__init__.py` |
 | `desktop` | `desktop/` | 54 | `desktop/README.md`, `desktop/package.json`, `desktop/src-tauri/Cargo.lock` |
-| 根级文件 | `/` | 16 | `.editorconfig`, `.gitattributes`, `.gitignore` |
-| `docs` | `docs/` | 13 | `_archive/执行记录/2026-11/ROLLBACK_DRILL_2026-10-31.md`, `docs/USER_AGREEMENT.md`, `docs/adr/0004-tauri-desktop-shell.md` |
+| 根级文件 | `/` | 21 | `.editorconfig`, `.gitattributes`, `.gitignore` |
+| `docs` | `docs/` | 17 | `docs/INDEX.md`, `docs/安装包构建与溯源.md`, `docs/adr/0004-tauri-desktop-shell.md` |
 | `vosr` | `vosr/` | 12 | `vosr/UPSTREAM.md`, `vosr/__init__.py`, `vosr/models/__init__.py` |
-| `scripts` | `scripts/` | 11 | `scripts/build_desktop_bundle.ps1`, `scripts/build_runtime_bundle.py`, `scripts/check_layout.py` |
-| `tests` | `tests/` | 9 | `tests/conftest.py`, `tests/test_api_extended.py`, `tests/test_app_smoke.py` |
+| `scripts` | `scripts/` | 16 | `scripts/build_desktop_bundle.ps1`, `scripts/build_runtime_bundle.py`, `scripts/check_layout.py` |
+| `tests` | `tests/` | 21 | `tests/conftest.py`, `tests/test_api_extended.py`, `tests/test_app_smoke.py` |
 | `data` | `data/` | 2 | `data/checkpoints/.gitkeep`, `data/uploads/.gitkeep` |
-| `model` | `model/` | 2 | `model/.gitkeep`, `model/README.md` |
+| `model` | `model/` | 3 | `model/.gitkeep`, `model/README.md`, `model/WEIGHTS_SHA256.json` |
 | `.githooks` | `.githooks/` | 1 | `.githooks/commit-msg` |
 | `logs` | `logs/` | 1 | `logs/.gitkeep` |
 | `outputs` | `outputs/` | 1 | `outputs/.gitkeep` |
+| `_archive` | `_archive/` | 2 | `_archive/INDEX.md`, `_archive/执行记录/2026-11/ROLLBACK_DRILL_2026-10-31.md` |
 
 依赖方向：入口层（应用 / 页面）调用领域层（业务模块），领域层依赖基础设施层（脚本、配置、模型资产）；反向引用不允许。
 

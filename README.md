@@ -70,11 +70,13 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 ### 桌面版（推荐普通用户）
 
 对外正式分发形态是 **Tauri v2 桌面版**：原生窗口 + 系统托盘 + 系统通知 + 单实例 + 崩溃自启，
-内置便携 Python 与权重，装完即用，不必自行配置 Python 环境。
+内置便携 Python（引导解释器，不含 torch）与权重下载入口，装完即用，不必自行配置 Python 环境。
 
 到 [Releases](https://github.com/ReSerendipity/VOSR2-Lite/releases) 下载
-`VOSR2Lite-Setup-v<版本>.exe` 与全部数据分卷（`VOSR2Lite-Data.7z.001` 起），**放在同一目录**后双击安装。
-壳与数据卷分离：应用代码以 `app-v<版本>.zip` 增量更新（约 1 MB），换壳不必重下数 GB 模型。
+`VOSR2Lite-Setup-v<版本>.exe`（单文件安装包，数据卷已内嵌，无需另外下载任何分卷），双击安装即可。
+同批发布 `SHA256SUMS.txt` 与 `*.provenance.json`（构建溯源），供校验；应用代码以 `app-v<版本>.zip`
+增量更新（约 1 MB），换壳不必重下数 GB 模型。构建与校验流程见
+[`docs/安装包构建与溯源.md`](docs/安装包构建与溯源.md)。
 
 壳只负责窗口/托盘/进程托管，业务仍是同一个 FastAPI 后端——桌面端与浏览器端共用一套代码。
 自行打包见 [`desktop/README.md`](desktop/README.md)；下面的源码流程适用于开发与 Linux 环境。
@@ -89,13 +91,14 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
    git clone https://github.com/ReSerendipity/VOSR2-Lite.git
    cd VOSR2-Lite
    ```
-3. **安装依赖**：Windows 双击 `install.bat`；或手动建虚拟环境：
+3. **安装依赖**：Windows 双击 `install.bat`（已按下方口径装 torch 后走 `requirements-lock.txt`）；或手动建虚拟环境：
    ```bash
    python -m venv .venv
-   .venv\Scripts\pip install -r requirements.txt
+   .venv\Scripts\pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+   .venv\Scripts\pip install -r requirements-lock.txt
    ```
-   > torch 需 CUDA 版（≥2.7，cu128；RTX 50 系 sm_120 必须，cu121 不支持）：
-   > `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`
+   > torch 需 CUDA 版（cu128；RTX 50 系 sm_120 必须，cu121 不支持）；本机 pip 若配了镜像
+   > extra-index，CPU 版会顶包，需加 `PIP_CONFIG_FILE=NUL`（`install.bat` 已处理）。
 4. **下载模型**（约 6.6 GB，仅权重；DINOv2 架构已本地 vendored，无需 clone 上游仓库）：
    ```bash
    .venv\Scripts\python scripts\download_model.py
@@ -155,11 +158,13 @@ DINOv2 架构已本地 vendored，无需 clone 上游仓库。
 
 ### 文档与治理
 
+- [docs/INDEX.md](docs/INDEX.md)：全仓文档总索引（路径 / 用途 / 状态 / 最后核对日期）。
 - [docs/README.md](docs/README.md)：docs 文档索引（使用文档 / 发布治理 / ADR / 分发形态）。
 - [docs/用户手册.md](docs/用户手册.md)：面向使用者的完整手册（参数怎么选、查看器操作、安全开关、故障排查、命令行工具）。
 - [docs/release-governance.md](docs/release-governance.md)：发布 / 回滚治理（版本位同步、资产清单与 SHA-256 校验、draft 人工审核、回滚方式）。
 - [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md)：使用合规声明。
 - [docs/agent-contract.md](docs/agent-contract.md)：自动化 agent 协作契约。
+- [docs/安装包构建与溯源.md](docs/安装包构建与溯源.md)：主分发物 Setup.exe 的构建、SHA256SUMS 与 provenance 强制校验流程（TD-011）。
 - 官方发布：通过 GitHub Release 分发，最新版见 <https://github.com/ReSerendipity/VOSR2-Lite/releases/latest>。发布包只含源代码与清单（`VOSR2-Lite-v<X.Y.Z>.zip` + `SHA256SUMS.txt` + CycloneDX SBOM）；**模型权重不随包分发**，请用 `python scripts/download_model.py` 获取。
 
 ### 安全、贡献与支持
@@ -229,12 +234,15 @@ VOSR2-Lite is a standalone image super-resolution toolkit built on [VOSR2](https
 ### Desktop build (recommended for end users)
 
 The official distribution is a **Tauri v2 desktop build**: native window, system tray, native
-notifications, single-instance and crash auto-restart, with a bundled portable Python and weights.
+notifications, single-instance and crash auto-restart, with a bundled portable Python bootstrap
+interpreter (no torch) and an in-app download entry for the runtime and weights.
 
-Download `VOSR2Lite-Setup-v<version>.exe` plus all data volumes (`VOSR2Lite-Data.7z.001` onwards)
-from [Releases](https://github.com/ReSerendipity/VOSR2-Lite/releases), keep them **in the same
-folder**, then run the installer. The shell and the data volumes are versioned separately: app code
-ships as an incremental `app-v<version>.zip` (~1 MB), so shell updates never re-download multi-GB weights.
+Download `VOSR2Lite-Setup-v<version>.exe` (a single-file installer with the data volume embedded —
+no separate `.7z.001` volumes to fetch) from
+[Releases](https://github.com/ReSerendipity/VOSR2-Lite/releases), then run it. The same release
+carries `SHA256SUMS.txt` and `*.provenance.json` for verification. App code ships as an incremental
+`app-v<version>.zip` (~1 MB), so shell updates never re-download multi-GB weights. See
+[`docs/安装包构建与溯源.md`](docs/安装包构建与溯源.md) for the build and verification flow.
 
 The shell only owns the window/tray/process supervision; business logic stays in the same FastAPI
 backend, so desktop and browser builds share one codebase. See
@@ -251,13 +259,13 @@ development and Linux.
    git clone https://github.com/ReSerendipity/VOSR2-Lite.git
    cd VOSR2-Lite
    ```
-3. **Install dependencies**: on Windows, double-click `install.bat`; or create a venv manually:
+3. **Install dependencies**: on Windows, double-click `install.bat` (it installs the CUDA torch build first, then `requirements-lock.txt`); or create a venv manually:
    ```bash
    python -m venv .venv
-   .venv\Scripts\pip install -r requirements.txt
+   .venv\Scripts\pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+   .venv\Scripts\pip install -r requirements-lock.txt
    ```
-   > torch needs the CUDA build (≥2.7, cu128; required for RTX 50-series sm_120 — cu121 will not work):
-   > `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`
+   > torch needs the CUDA build (cu128; required for RTX 50-series sm_120 — cu121 will not work). If your pip config has a mirror extra-index, the CPU wheel can shadow the CUDA one — set `PIP_CONFIG_FILE=NUL` (`install.bat` already handles this).
 4. **Download weights** (~6.6 GB, weights only; the DINOv2 architecture is vendored locally, no upstream clone needed):
    ```bash
    .venv\Scripts\python scripts\download_model.py
@@ -317,10 +325,12 @@ The DINOv2 architecture is vendored locally — no upstream clone needed.
 
 ### Docs & governance
 
+- [docs/INDEX.md](docs/INDEX.md): repository-wide document index (path / purpose / status / last reviewed).
 - [docs/用户手册.md](docs/用户手册.md): end-user manual (parameter choices, viewer controls, security switches, troubleshooting, CLI tools).
 - [docs/release-governance.md](docs/release-governance.md): release / rollback governance (version-bump sync, asset manifest + SHA-256, draft human review, rollback procedure).
 - [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md): usage terms.
 - [docs/agent-contract.md](docs/agent-contract.md): automation-agent collaboration contract.
+- [docs/安装包构建与溯源.md](docs/安装包构建与溯源.md): build and mandatory SHA256SUMS / provenance verification for the Setup.exe distribution artifact (TD-011).
 - Official releases are cut on GitHub Releases: <https://github.com/ReSerendipity/VOSR2-Lite/releases/latest>. Release assets contain source + manifest only (`VOSR2-Lite-v<X.Y.Z>.zip` + `SHA256SUMS.txt` + CycloneDX SBOM); **weights are not bundled** — fetch them with `python scripts/download_model.py`.
 
 ### Security, contributing, support

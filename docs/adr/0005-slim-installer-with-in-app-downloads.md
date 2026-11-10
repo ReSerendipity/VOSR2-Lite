@@ -32,15 +32,18 @@ ADR-0004 定下的分发形态是「安装器 + 7z 分卷数据卷」，数据�
 1. **安装包只带**：Tauri 壳 + 应用代码 + **引导解释器** `app/bootstrap/`
    （Python  embeddable/WinPython + 仅 Web 依赖，**不含 torch**）。
    实测载荷 66.8 MB → 7z **20.0 MB 单卷**（对比旧数据卷 8×1900MB）。
+   数据卷已内嵌进单文件安装器本体（NSIS `File` 指令），用户只需下载一个 exe。
 2. **程序内下载管理页**（`/downloads`，与首页/设置同级的后端页面）是安装环境与模型的唯一入口：
-   - **运行环境**：预构建的 torch/torchvision cu128 wheels 包（自己托管在 Release，
-     因为从 HF 取 torch 不便、国内直连 PyTorch 源常失败）。
-     离线装进 `bootstrap/` **自身的** site-packages（目录名不变），不另起一份解释器。
+   - **运行环境**：**默认在线安装**（2026-11-01 起，`install_mode=online`）——后端子进程
+     pip 直连官方 cu128 索引装 torch 家族，装进 `bootstrap/` **自身的** site-packages
+     （目录名不变），不另起一份解释器。预构建分卷路径保留但默认不下载（把 `install_mode`
+     切回非 online 即生效）。
    - **模型权重**：不自己托管，复用 `scripts/download_model.py` 的
      hf-mirror → HuggingFace → ModelScope 多源回退与 `.part` + Range 断点续传。
-3. **就绪判定不看目录名**：装完环境后 `bootstrap/` 名字没变，壳靠
-   `bootstrap/Lib/site-packages/torch` 是否存在判定「已是完整运行时」，据此把入口导回首页。
-   比启动子进程 `import torch`（数秒）便宜得多。
+3. **就绪判定不看目录名、也不看 torch 目录**：装完环境后 `bootstrap/` 名字没变，壳靠
+   后端安装成功后写入的 `bootstrap/RUNTIME.json` 判定「已是完整运行时」，据此把入口导回首页。
+   **不能只看 `site-packages/torch`**——WinPython 完整版自带 CPU 版 torch（552 MB、CUDA 不可用），
+   只看 torch 目录会把「未装环境」误判成已装，用户永远看不到下载管理页。
 4. **不保留全量包构建**（用户裁定）。瘦包是唯一分发形态；离线/内网场景由用户自行预置
    `app/model/` 与 `app/bootstrap/` 的 torch。
 5. **环境包清单随应用分发**：`app/downloads_catalog.json` 记录版本/base_url/分卷 sha256。
