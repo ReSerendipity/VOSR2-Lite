@@ -52,7 +52,11 @@ htmlcov/
 .benchmarks/
 
 # ── 本地独享内容（不上远程）─────────────────────────────────────────────────
-local/
+local/*
+!local/agents/
+local/agents/*
+!local/agents/GOTCHAS.md
+!local/agents/REVISION_LOG.md
 # Qoder 本地审查产物（better-harness run 目录与证据）
 .qoder/
 docs/plans/
