@@ -74,19 +74,22 @@ def _make_progress_cb(
     从而在下一个采样步之前中止推理。
     """
 
-    def _cb(stage: str, ratio: float) -> None:
+    def _cb(stage: str, ratio: float, detail: str = "") -> None:
         if cancel_event is not None and cancel_event.is_set():
             raise InferenceCancelled(task_id)
         loop = _LOOP_HOLDER.get("loop")
         if loop is None or loop.is_closed():
             return
+        label = _STAGE_LABELS.get(stage, stage)
+        # detail 来自瓦片级进度（「第 x 块 / 共 y 块」），拼在阶段名后便于前端直显
+        message = f"{label} · {detail}" if detail else label
         try:
             asyncio.run_coroutine_threadsafe(
                 common.update_task_state(
                     task_id,
                     history_db,
                     progress=round(min(max(ratio, 0.0), 1.0), 4),
-                    message=_STAGE_LABELS.get(stage, stage),
+                    message=message,
                     current_stage=stage,
                 ),
                 loop,

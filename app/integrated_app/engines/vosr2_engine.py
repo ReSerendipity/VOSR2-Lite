@@ -209,6 +209,40 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
                 f"换更大的输入图，或把采样步数改为 1（一步蒸馏）"
             )
 
+    @staticmethod
+    def _check_multistep_tiling(steps: int, dit_tile: int) -> None:
+        """多步采样 + DiT 分块 的 fail-closed 守卫（P0-1）。
+
+        分块路径（``tiled_vae_latent_inference``）每个瓦片只做单次前向，
+        未实现 CFG 与 weak-condition 拼接；多步采样则依赖上游
+        ``sample_multistep_fm`` 的 CFG 合成（``vosr/vosr.py:333-349``）。
+        两者叠加会静默丢掉 cfg_scale（输出风格与不分块不一致，且无任何提示），
+        因此在分块 CFG 未实现前直接拒绝，不做隐式降级。
+        独立成静态方法，便于单测覆盖（restore() 需要真实权重）。
+        """
+        if steps > 1 and dit_tile and dit_tile > 0:
+            logger.warning(
+                f"[CFG] 未生效: steps={steps} 命中 DiT 分块（tile={dit_tile}），已拒绝执行"
+            )
+            raise ValueError(
+                f"多步采样（steps={steps}）暂不支持分块推理：分块路径未实现 CFG，"
+                f"继续执行会静默丢失 cfg_scale（本次将触发 DiT tile={dit_tile}）。"
+                f"请改为：①采样步数改为 steps=1（一步蒸馏）；"
+                f"②把输出长边降到 ≤512px，使 DiT 分块不触发。"
+            )
+
+    def _log_cfg_status(self, steps: int) -> None:
+        """日志标注本次采样的 CFG 是否生效（P0-1 的可观测性要求）。"""
+        if steps > 1:
+            logger.info(
+                f"[CFG] 已生效: steps={steps}, "
+                f"cfg_scale={getattr(self.vosr, 'cfg_scale', 'n/a')}, "
+                f"窗口=[{getattr(self.vosr, 't_start', 'n/a')}, "
+                f"{getattr(self.vosr, 't_end', 'n/a')}]（未分块）"
+            )
+        else:
+            logger.info("[CFG] 未启用: 一步蒸馏路径无 CFG（steps=1）")
+
     def _effective_args(self, params: RestoreParams) -> types.SimpleNamespace:
         """把单次请求参数叠加到检查点 args 上（不改动 self.args）。"""
         args = types.SimpleNamespace(**vars(self.args))
@@ -251,6 +285,9 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
         )
         args.tile_size = dit_tile
         args.vae_tile_size = vae_tile
+        # P0-1：多步 + 分块会静默丢 CFG，先 fail-closed；分块 CFG 尚未实现
+        self._check_multistep_tiling(params.steps, dit_tile)
+        self._log_cfg_status(params.steps)
         if dit_tile or vae_tile:
             logger.info(
                 f"分块推理: 输出 {output_w}x{output_h}px, "

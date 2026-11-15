@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from loguru import logger
 from torchvision.transforms import Normalize
 
-from app.integrated_app.engines._core import ProgressCb, _empty_cache
+from app.integrated_app.engines._core import ProgressCb, _empty_cache, make_tile_reporter
 from app.integrated_app.exceptions import InferenceCancelled
 from vosr import tiled_vae
 
@@ -54,8 +54,11 @@ def tiled_vae_latent_inference(
 ):
     """DiT 前向按 latent 分块、Gaussian 混合；VAE 编解码按 vae_tile_size 分块。
 
-    progress_cb: (stage, ratio 0..1)，ratio 在 encode(0.1)->venc(0.3)->
+    progress_cb: (stage, ratio 0..1[, detail])，ratio 在 encode(0.1)->venc(0.3)->
     sample(0.4..0.85, 按步数细分)->decode(0.85)->done(1.0) 之间推进。
+    特征提取与采样阶段按瓦片上报 detail（「第 x 块 / 共 y 块」），并按
+    TILE_PROGRESS_INTERVAL 节流：一步模型下采样只有一步，若不按瓦片上报，
+    整个分块期间进度会从 0.4 直跳 0.85，用户侧表现为长时间无反馈。
     """
 
     def _report(stage: str, ratio: float) -> None:
@@ -117,7 +120,10 @@ def tiled_vae_latent_inference(
         f"overlap={lt_overlap}, grid={len(h_pos)}x{len(w_pos)}"
     )
 
+    total_tiles = len(h_pos) * len(w_pos)
     tile_venc = {}
+    venc_report = make_tile_reporter(progress_cb, total_tiles, stage="venc", base=0.15, span=0.15)
+    done = 0
     with torch.no_grad():
         for hi in h_pos:
             for wi in w_pos:
@@ -126,6 +132,8 @@ def tiled_vae_latent_inference(
                 pw_e = min((wi + lt_size) * AE_FACTOR, lq_tensor.shape[3])
                 lq_crop = lq_tensor[:, :, ph_s:ph_e, pw_s:pw_e]
                 tile_venc[(hi, wi)] = get_venc_features(venc, lq_crop, args)
+                done += 1
+                venc_report(done)
     _report("venc", 0.3)
     _empty_cache()
 
@@ -139,6 +147,15 @@ def tiled_vae_latent_inference(
             dt = t_cur - t_nxt
             u_acc = torch.zeros(lq_latent.shape, device=device, dtype=torch.float32)
             w_acc = torch.zeros_like(u_acc)
+            # 每步单独建上报器：多步时分段推进（0.4..0.85 按步均分）
+            sample_report = make_tile_reporter(
+                progress_cb,
+                total_tiles,
+                stage="sample",
+                base=0.4 + 0.45 * step_i / n_steps,
+                span=0.45 / n_steps,
+            )
+            done = 0
             for hi in h_pos:
                 for wi in w_pos:
                     he, we = hi + lt_size, wi + lt_size
@@ -146,8 +163,9 @@ def tiled_vae_latent_inference(
                     u_tile = model(inp, t_cur.expand(b), t_nxt.expand(b), tile_venc.get((hi, wi)))
                     u_acc[:, :, hi:he, wi:we] += u_tile.float() * g_weight
                     w_acc[:, :, hi:he, wi:we] += g_weight
+                    done += 1
+                    sample_report(done)
             z = (z.float() - dt * (u_acc / w_acc.clamp(min=1e-12))).to(z.dtype)
-            _report("sample", 0.4 + 0.45 * (step_i + 1) / n_steps)
 
         _report("decode", 0.9)
         out = tiled_vae.decode_dispatch(vae, z.float(), args, latents_mean, latents_std, None)

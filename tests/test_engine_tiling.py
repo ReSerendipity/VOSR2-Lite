@@ -627,3 +627,206 @@ def test_gaussian_weights_corners_are_nonzero():
     w = tiled_vae._gaussian_weights(512, 512, 1, "cpu")
     assert float(w.min()) > 0.0
     assert float(w.min()) < 1e-4  # 同时确实很小，说明是真正的边缘衰减
+
+
+# ── 多步 + 分块：fail-closed 守卫（P0-1）──────────────────────────────────
+@pytest.mark.parametrize("steps", [2, 20, 25])
+def test_multistep_tiling_guard_rejects(steps):
+    """多步采样一旦命中 DiT 分块必须拒绝：分块路径没有 CFG。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    with pytest.raises(ValueError, match="暂不支持分块"):
+        VOSR2Engine._check_multistep_tiling(steps, 512)
+
+
+@pytest.mark.parametrize("steps,tile", [(1, 512), (1, 0), (2, 0), (0, 0), (-1, 0)])
+def test_multistep_tiling_guard_allows(steps, tile):
+    """一步蒸馏、或未触发分块时（含非法步数）均放行。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    assert VOSR2Engine._check_multistep_tiling(steps, tile) is None
+
+
+def test_multistep_tiling_guard_message_is_actionable():
+    """报错必须点明「丢 CFG」并给出两条出路：改一步 / 压到 ≤512px。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    with pytest.raises(ValueError) as exc:
+        VOSR2Engine._check_multistep_tiling(25, 512)
+    msg = str(exc.value)
+    assert "CFG" in msg
+    assert "steps=1" in msg
+    assert "512" in msg
+
+
+# ── 瓦片级进度上报（P0-2）────────────────────────────────────────────────
+class _FakeClock:
+    """可手动推进的假时钟，用于验证时间节流而不真的 sleep。"""
+
+    def __init__(self) -> None:
+        self.t = 0.0
+
+    def __call__(self) -> float:
+        return self.t
+
+
+def test_tile_reporter_first_tile_has_detail():
+    """首块立刻上报，并带「第 1 块 / 共 5 块」与按块计算的 ratio。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r, d: events.append((s, r, d)),
+        5,
+        stage="sample",
+        base=0.4,
+        span=0.45,
+        clock=_FakeClock(),
+    )
+    rep(1)
+    assert events[0][0] == "sample"
+    assert events[0][1] == pytest.approx(0.4 + 0.45 / 5)
+    assert events[0][2] == "第 1 块 / 共 5 块"
+
+
+def test_tile_reporter_throttles_middle_tiles():
+    """时间不推进时，中间块被节流，只剩首块与末块两次上报。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r, d: events.append(d),
+        6,
+        stage="sample",
+        base=0.0,
+        span=1.0,
+        clock=_FakeClock(),
+    )
+    for done in range(1, 7):
+        rep(done)
+    assert len(events) == 2
+    assert events[0] == "第 1 块 / 共 6 块"
+    assert events[-1] == "第 6 块 / 共 6 块"
+
+
+def test_tile_reporter_emits_after_interval():
+    """超过最小间隔后，中间块应放行上报。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    clock = _FakeClock()
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r, d: events.append(d),
+        6,
+        stage="sample",
+        base=0.0,
+        span=1.0,
+        clock=clock,
+    )
+    rep(1)
+    clock.t = 0.25  # > TILE_PROGRESS_INTERVAL(0.2)
+    rep(2)
+    assert events[-1] == "第 2 块 / 共 6 块"
+
+
+def test_tile_reporter_last_tile_forces_endpoint():
+    """末块即使没到间隔也必须上报，保证阶段终点（0.85）准确。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    seen = {}
+    rep = make_tile_reporter(
+        lambda s, r, d: seen.update(ratio=r),
+        4,
+        stage="sample",
+        base=0.4,
+        span=0.45,
+        clock=_FakeClock(),
+    )
+    rep(4)
+    assert seen["ratio"] == pytest.approx(0.85)
+
+
+def test_tile_reporter_supports_legacy_two_arg_callback():
+    """历史双参数回调（如 smoke 脚本）不应因新增 detail 参数而崩。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r: events.append(r),
+        2,
+        stage="sample",
+        base=0.0,
+        span=1.0,
+        clock=_FakeClock(),
+    )
+    rep(1)
+    rep(2)
+    assert events == [0.5, 1.0]
+
+
+def test_tile_reporter_none_callback_is_noop():
+    """无回调时返回可调用的空实现，不抛异常。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    rep = make_tile_reporter(None, 3, stage="sample", base=0.4, span=0.45)
+    assert rep(1) is None
+
+
+def test_tile_reporter_propagates_cancel():
+    """取消异常（协作式中断）必须透传，不能被进度层的兜底 try 吞掉。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+    from app.integrated_app.exceptions import InferenceCancelled
+
+    def _cancel(*_a):
+        raise InferenceCancelled("task-1")
+
+    rep = make_tile_reporter(_cancel, 3, stage="sample", base=0.0, span=1.0, clock=_FakeClock())
+    with pytest.raises(InferenceCancelled):
+        rep(1)
+
+
+def test_tiled_inference_reports_tile_progress(monkeypatch):
+    """端到端（CPU）：分块主循环真的会把「第 x 块 / 共 y 块」推给回调。
+
+    用假的 VAE 编解码与假 DiT，只验证 wiring 与 ratio 端点，不依赖显存/权重。
+    """
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+    from vosr import tiled_vae
+
+    class _FakeDit:
+        def __init__(self) -> None:
+            self._p = torch.zeros(1, dtype=torch.float32)
+
+        def parameters(self):
+            return iter([self._p])
+
+        def __call__(self, inp, t_cur, t_nxt, fea):  # noqa: ANN001
+            return inp[:, :16] * 0.0  # 零速度 => z 不变，纯验证进度
+
+    monkeypatch.setattr(
+        tiled_vae, "encode_dispatch", lambda *_a, **_k: (torch.zeros(1, 16, 128, 128), None, None)
+    )
+    monkeypatch.setattr(tiled_vae, "decode_dispatch", lambda *_a, **_k: torch.zeros(1, 3, 64, 64))
+
+    events = []
+    tiled_vae_latent_inference(
+        _FakeDit(),
+        None,
+        None,
+        torch.zeros(1, 3, 1024, 1024),
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=1),
+        device="cpu",
+        progress_cb=lambda s, r, d="": events.append((s, r, d)),
+    )
+
+    details = [d for s, _r, d in events if s in ("venc", "sample") and d]
+    assert details, "分块循环应上报瓦片级 detail"
+    assert all(d.startswith("第 ") and "块 / 共" in d for d in details)
+    total = int(details[-1].rsplit("共 ", 1)[1].split(" 块", 1)[0])
+    assert total > 1, "1024² 输入应按 512 tile 切成多块"
+    sample_ratios = [r for s, r, _d in events if s == "sample"]
+    assert 0.4 < sample_ratios[0] < 0.5  # 首块略高于阶段起点
+    assert sample_ratios[-1] == pytest.approx(0.85)
+    assert max(r for _s, r, _d in events) == pytest.approx(1.0)
