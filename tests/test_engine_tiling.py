@@ -924,9 +924,7 @@ def _patch_vae(monkeypatch, latent_side: int = 32):
         lambda *_a, **_k: (torch.zeros(1, 16, latent_side, latent_side), None, None),
     )
     # 解码直接回传 latent 前 3 通道，便于断言采样后的 z
-    monkeypatch.setattr(
-        tiled_vae, "decode_dispatch", lambda _vae, z, *_a, **_k: z.float()[:, :3]
-    )
+    monkeypatch.setattr(tiled_vae, "decode_dispatch", lambda _vae, z, *_a, **_k: z.float()[:, :3])
 
 
 def test_tiled_cfg_composes_cond_and_weak(monkeypatch):
@@ -998,9 +996,7 @@ def test_tiled_cfg_weak_features_are_zeroed(monkeypatch):
     from app.integrated_app.engines._core import TiledCfg
 
     _patch_vae(monkeypatch)
-    monkeypatch.setattr(
-        _tiling, "get_venc_features", lambda *_a, **_k: [torch.ones(1, 4, 8, 8)]
-    )
+    monkeypatch.setattr(_tiling, "get_venc_features", lambda *_a, **_k: [torch.ones(1, 4, 8, 8)])
     dit = _RecordingDit()
     cfg = TiledCfg(cfg_scale=2.0, t_start=0.0, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
 
