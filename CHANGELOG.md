@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.2] - 2026-11-16
 
 ### Added
 
@@ -73,6 +73,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CI 红灯（ruff E501 / black）**：修复 `app/integrated_app/download_service.py`、
+  `scripts/build_runtime_bundle.py`、`tests/test_download_online_install.py` 的超长行，
+  并对 5 个存量文件执行 black（仅格式，不改逻辑）；复用合并 PR #12，
+  lint / format / mypy / pytest / 覆盖率门禁全绿。
 - **单张修复失败时失败原因不上屏**：`restore.js` 的失败汇聚分支只显示「有任务失败: N」（N 是计数），
   而单文件时队列行是隐藏的，`item.error` 里的真实原因（如「文件内容与扩展名不符，疑似伪造格式」）
   没有任何地方显示。改为单张失败时把 `item.error` 拼进消息，批量仍显示计数。该问题由新增的 E2E

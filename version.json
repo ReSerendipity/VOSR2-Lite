@@ -1,8 +1,8 @@
 {
   "name": "VOSR2-Lite",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "channel": "stable",
-  "release_date": "2026-10-30",
+  "release_date": "2026-11-16",
   "minimum_shell_version": "1.0.0",
-  "changelog": "接入 Tauri v2 桌面壳（desktop/src-tauri，壳版本 1.0.0）：原生窗口/托盘/系统通知/单实例/崩溃自启/增量更新；新增 POST /api/system/shutdown 优雅关闭端点与 scripts/start_portable.py 便携启动器；壳侧自适应 CSRF（启用时走 double-submit，关闭时裸 POST）。"
+  "changelog": "修复 CI 红灯：ruff E501（download_service / build_runtime_bundle / tests）与 black 格式全量对齐，合并 PR #12；含分块 CFG 与瓦片级进度等 Unreleased 变更。"
 }
