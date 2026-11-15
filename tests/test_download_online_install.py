@@ -5,7 +5,8 @@
 
 覆盖点（对应 docs/tech-debt.md TD-008 的三条缺口）：
 - 退出码非 0 → RuntimeError，且报错里带 pip 输出尾巴；
-- 取消 → terminate 子进程 + InterruptedError，且**不留下** RUNTIME.json（不能把半装环境写成「已安装」）；
+- 取消 → terminate 子进程 + InterruptedError，且**不留下** RUNTIME.json
+  （不能把半装环境写成「已安装」）；
 - 镜像顶包 → 用 PIP_CONFIG_FILE=NUL 屏蔽用户镜像、显式钉 --index-url/--extra-index-url。
 
 另钉命令构造与成功路径的元信息写入，避免「只是没人测」变成「改了没人拦」。
@@ -228,7 +229,9 @@ def test_progress_line_is_truncated_to_160(fake_popen, meta_dir):
 def test_install_runtime_delegates_when_catalog_says_online(monkeypatch, fake_popen, meta_dir):
     """install_runtime 在 install_mode=online 时必须走在线分支（不能回头读 volumes）。"""
     monkeypatch.setattr(
-        download_service, "runtime_catalog", lambda: {"install_mode": "ONLINE", "packages": ["torch"]}
+        download_service,
+        "runtime_catalog",
+        lambda: {"install_mode": "ONLINE", "packages": ["torch"]},
     )
     fake_popen([], code=0)
 

@@ -299,9 +299,7 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
         args.vae_tile_size = vae_tile
         # 多步 + 分块：inference.tiled_cfg 开启时走瓦片内 cond/weak 双份 CFG，
         # 关闭时回退到旧的 fail-closed（明确拒绝，不静默降级）
-        use_tiled_cfg = self._check_multistep_tiling(
-            params.steps, dit_tile, self.tiled_cfg_enabled
-        )
+        use_tiled_cfg = self._check_multistep_tiling(params.steps, dit_tile, self.tiled_cfg_enabled)
         self._log_cfg_status(params.steps, "tiled" if use_tiled_cfg else "full")
         cfg_ctx: TiledCfg | None = None
         if use_tiled_cfg:

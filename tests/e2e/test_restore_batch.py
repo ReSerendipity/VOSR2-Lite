@@ -308,9 +308,7 @@ def test_batch_partial_failure_keeps_other_items(page, e2e_server, tmp_path) -> 
     assert not [
         entry
         for entry in bad
-        if entry["status"] == "running"
-        and entry["badge"].endswith("%")
-        and entry["badge"] != "0%"
+        if entry["status"] == "running" and entry["badge"].endswith("%") and entry["badge"] != "0%"
     ], f"失败项出现了真实进度: {bad}"
     assert not [entry for entry in bad if entry["status"] == "done"], bad
 
@@ -344,16 +342,14 @@ def test_batch_partial_failure_keeps_other_items(page, e2e_server, tmp_path) -> 
         full = os.path.join(e2e_server.outputs, matched[0])
         with Image.open(full) as img:
             assert img.size == EXPECTED_SIZE, img.size
-        assert _near(_center_pixel(full), color), (
-            f"{matched[0]} 中心像素与输入 {name} 的 {color} 不符（跨项串用了结果？）"
-        )
+        assert _near(
+            _center_pixel(full), color
+        ), f"{matched[0]} 中心像素与输入 {name} 的 {color} 不符（跨项串用了结果？）"
 
     # ⑧ 上传只发生在成功两项上：失败项在魔数校验就被拒，连文件都没落
     new_uploads = dir_snapshot(e2e_server.uploads) - uploads_before
     assert len(new_uploads) == 2, f"上传目录多了 {sorted(new_uploads)}"
-    assert {name.split("_", 1)[-1] for name in new_uploads} == {"pf_a.png", "pf_c.png"}, (
-        new_uploads
-    )
+    assert {name.split("_", 1)[-1] for name in new_uploads} == {"pf_a.png", "pf_c.png"}, new_uploads
     assert temp_files(e2e_server.uploads) == [], temp_files(e2e_server.uploads)
 
     # ⑨ 导出目录干净：没有任何成品被导出（失败项更不该有）
@@ -371,6 +367,6 @@ def test_batch_partial_failure_keeps_other_items(page, e2e_server, tmp_path) -> 
         "records"
     ]
     names = [os.path.basename(r.get("input_file") or "") for r in records]
-    assert not [n for n in names if n.endswith("pf_bad.png")], (
-        f"失败输入居然落了历史记录（拒绝点太靠后）: {names[:8]}"
-    )
+    assert not [
+        n for n in names if n.endswith("pf_bad.png")
+    ], f"失败输入居然落了历史记录（拒绝点太靠后）: {names[:8]}"

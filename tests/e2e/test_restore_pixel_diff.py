@@ -139,10 +139,10 @@ def test_viewer_pixels_match_stub_output(page, e2e_server, tmp_path) -> None:
         f"mean={mean_diff:.3f} mirror_bad_ratio={mirror_bad_ratio:.2%}"
     )
 
-    assert bad_ratio <= MAX_BAD_RATIO, (
-        f"渲染像素与引擎产出不一致：超差 {over} 个像素（{bad_ratio:.2%}），平均差 {mean_diff:.2f}"
-    )
+    assert (
+        bad_ratio <= MAX_BAD_RATIO
+    ), f"渲染像素与引擎产出不一致：超差 {over} 个像素（{bad_ratio:.2%}），平均差 {mean_diff:.2f}"
     assert mean_diff <= MAX_MEAN_DIFF, f"平均像素差 {mean_diff:.2f} 过大"
-    assert mirror_bad_ratio >= MIN_MIRROR_BAD_RATIO, (
-        f"镜像负控只差 {mirror_bad_ratio:.2%} 像素 —— 判据过宽，这条用例证明不了什么"
-    )
+    assert (
+        mirror_bad_ratio >= MIN_MIRROR_BAD_RATIO
+    ), f"镜像负控只差 {mirror_bad_ratio:.2%} 像素 —— 判据过宽，这条用例证明不了什么"

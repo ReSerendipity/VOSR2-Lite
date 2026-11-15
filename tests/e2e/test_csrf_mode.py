@@ -42,12 +42,10 @@ def _assert_signed(token: str, secret_key_hex: str) -> None:
     """token 形如 ``nonce.HMAC-SHA256(secret, nonce)``，离线复算签名。"""
     assert "." in token, f"token 形状不对: {token!r}"
     nonce, signature = token.rsplit(".", 1)
-    expected = hmac.new(
-        bytes.fromhex(secret_key_hex), nonce.encode(), hashlib.sha256
-    ).hexdigest()
-    assert hmac.compare_digest(signature, expected), (
-        f"token 签名与服务端密钥不符（不是这个服务签的？）: {token[:16]}…"
-    )
+    expected = hmac.new(bytes.fromhex(secret_key_hex), nonce.encode(), hashlib.sha256).hexdigest()
+    assert hmac.compare_digest(
+        signature, expected
+    ), f"token 签名与服务端密钥不符（不是这个服务签的？）: {token[:16]}…"
 
 
 def _post_restore(base: str, source: str, **kwargs) -> httpx.Response:
@@ -88,9 +86,9 @@ def test_csrf_double_submit_protocol(e2e_server_csrf, tmp_path) -> None:
     token = seed.cookies.get("csrf_token")
     assert token, f"GET /restore 没有种 csrf_token：{seed.headers.get('set-cookie')!r}"
     _assert_signed(token, secret)
-    assert "httponly" not in (seed.headers.get("set-cookie") or "").lower(), (
-        "csrf_token 被标成 HttpOnly，app.js 读不到，开启 CSRF 后前端必 403"
-    )
+    assert (
+        "httponly" not in (seed.headers.get("set-cookie") or "").lower()
+    ), "csrf_token 被标成 HttpOnly，app.js 读不到，开启 CSRF 后前端必 403"
     nonce, signature = token.rsplit(".", 1)
     forged = f"{nonce}.{'0' * len(signature)}"
 
@@ -110,9 +108,9 @@ def test_csrf_double_submit_protocol(e2e_server_csrf, tmp_path) -> None:
         assert body["error"]["code"] == CSRF_ERROR_CODE, f"{label}: {body}"
 
     # ③ 被拒的请求不许有任何业务副作用（403 应是「在业务之前」挡下的）
-    assert set(os.listdir(e2e_server_csrf.uploads)) == uploads_before, (
-        "被 CSRF 拒掉的请求仍然写了上传文件：403 发生在业务之后，判据是假绿"
-    )
+    assert (
+        set(os.listdir(e2e_server_csrf.uploads)) == uploads_before
+    ), "被 CSRF 拒掉的请求仍然写了上传文件：403 发生在业务之后，判据是假绿"
     assert len(e2e_server_csrf.stub.restore_calls) == calls_before, "被拒的请求进了引擎"
 
     # ④ 失败响应会补种一枚**新的、签名合法**的 cookie（浏览器下一次请求自愈）
@@ -121,9 +119,7 @@ def test_csrf_double_submit_protocol(e2e_server_csrf, tmp_path) -> None:
     _assert_signed(healed, secret)
 
     # ⑤ 带正确 token：真的建任务、跑完、落盘
-    ok = _post_restore(
-        base, source, cookies={"csrf_token": token}, headers={"X-CSRF-Token": token}
-    )
+    ok = _post_restore(base, source, cookies={"csrf_token": token}, headers={"X-CSRF-Token": token})
     assert ok.status_code == 200, f"带正确 token 仍被拒: {ok.status_code} {ok.text}"
     task_id = ok.json()["data"]["task_id"]
     assert len(task_id) == 16, task_id
@@ -137,9 +133,9 @@ def test_csrf_double_submit_protocol(e2e_server_csrf, tmp_path) -> None:
     assert os.path.basename(out_path).startswith("csrf_a_vosr2_"), out_path
     with Image.open(out_path) as img:
         assert img.size == (INPUT_SIZE[0] * UPSCALE, INPUT_SIZE[1] * UPSCALE), img.size
-    assert len(e2e_server_csrf.stub.restore_calls) == calls_before + 1, (
-        "正确 token 的请求没有进引擎"
-    )
+    assert (
+        len(e2e_server_csrf.stub.restore_calls) == calls_before + 1
+    ), "正确 token 的请求没有进引擎"
 
 
 def test_csrf_enabled_frontend_sends_header(page, e2e_server_csrf, tmp_path) -> None:
@@ -184,9 +180,9 @@ def test_csrf_enabled_frontend_sends_header(page, e2e_server_csrf, tmp_path) -> 
         " || !document.getElementById('resultCard').hidden)",
         timeout=30_000,
     )
-    assert page.locator("#errorCard").is_hidden(), (
-        f"开启 CSRF 后前端请求被拒：{(page.text_content('#errorMsg') or '').strip()}"
-    )
+    assert page.locator(
+        "#errorCard"
+    ).is_hidden(), f"开启 CSRF 后前端请求被拒：{(page.text_content('#errorMsg') or '').strip()}"
     assert page.locator("#resultCard").is_visible(), "没有出现结果卡（旅程没走完）"
     page.wait_for_function(
         "() => document.getElementById('viewer').classList.contains('is-ready')",
@@ -207,9 +203,7 @@ def test_csrf_enabled_frontend_sends_header(page, e2e_server_csrf, tmp_path) -> 
     with Image.open(out_path) as img:
         assert img.size == (64 * 4, 48 * 4), img.size
         center = img.convert("RGB").getpixel((img.size[0] // 2, img.size[1] // 2))
-    assert all(abs(a - e) <= 6 for a, e in zip(center, color)), (
-        f"成品中心像素 {center} 与输入 {color} 不符"
-    )
-    assert len(e2e_server_csrf.stub.restore_calls) == calls_before + 1, (
-        "浏览器这次上传没有进引擎"
-    )
+    assert all(
+        abs(a - e) <= 6 for a, e in zip(center, color)
+    ), f"成品中心像素 {center} 与输入 {color} 不符"
+    assert len(e2e_server_csrf.stub.restore_calls) == calls_before + 1, "浏览器这次上传没有进引擎"
