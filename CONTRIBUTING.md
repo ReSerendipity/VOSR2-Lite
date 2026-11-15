@@ -14,8 +14,9 @@
 
 ```bash
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\pip install -r requirements-dev.txt   # 若存在 / 或 pip install pytest ruff
+.venv\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+.venv\Scripts\pip install -r requirements-lock.txt
+.venv\Scripts\pip install -r requirements-dev.txt
 .venv\Scripts\python -m pytest tests/ -v
 .venv\Scripts\python -m ruff check .
 ```

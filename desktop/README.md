@@ -35,18 +35,20 @@ npm run dev                 # = tauri dev，会编译 Rust 并启动
 2. `CARGO_MANIFEST_DIR` 上溯两级（仓库根）的 `scripts/start_portable.py`（开发态）
 3. Python 解释器：`<app_dir>/runtime/python.exe` → `<app_dir>/.venv/Scripts/python.exe` → 系统 `python`
 
-因此本地调试需要先准备好 `.venv`（`install.bat` 或 `pip install -r requirements.txt`）。
+因此本地调试需要先准备好 `.venv`（`install.bat`，或手动按 README 快速开始装 `requirements-lock.txt`）。
 
 ## 打包（Windows / NSIS）
 
-## 分发模型：瘦包 + 程序内下载
+## 分发模型：瘦包（单文件安装器）+ 程序内下载
 
 安装包**不含 torch 运行时、不含模型权重**。用户装完（几十 MB）后，由程序内的
 「下载管理」页（`/downloads`，与首页/设置同级）按需安装：
 
-- **运行环境**：torch/torchvision 的 cu128 wheels（约 2.5 GB），离线装进
-  `app/bootstrap/` 自身的 site-packages——目录名不变，壳靠 `site-packages/torch`
-  判定它已是完整运行时，无需第二份解释器。
+- **运行环境**：默认**在线安装**（子进程 pip 直连官方 cu128 索引），装进
+  `app/bootstrap/` 自身的 site-packages——目录名不变；壳靠后端装完写入的
+  `bootstrap/RUNTIME.json` 判定它已是完整运行时（不能只看 `site-packages/torch`：
+  WinPython 自带 CPU 版 torch 会把未装环境误判为已装），无需第二份解释器。
+  分卷离线路径保留：把 `downloads_catalog.json` 的 `install_mode` 切回非 online 即生效。
 - **模型权重**：走 HuggingFace / ModelScope（不占本项目托管带宽），复用
   `scripts/download_model.py` 的多源回退与断点续传。
 
@@ -69,18 +71,22 @@ powershell -ExecutionPolicy Bypass -File scripts\build_desktop_bundle.ps1
 #    两者都建（发版用）：                      -Mode all
 #    已有准备好的便携解释器：                  -RuntimeDir D:\WPy64-312101 -SkipAutoPrepare -SkipDeps
 
-# 3) 编译安装器（需 NSIS + 7-Zip）
-cd scripts/installer
-makensis /DAPP_VERSION=<应用版本> -DSRC_7ZA="C:\Program Files\7-Zip\7z.exe" setup.nsi
+# 3) 编译单文件安装器（需 NSIS + 7-Zip；推荐用一条命令出包 + 校验物）
+pwsh -File scripts\installer\build_setup.ps1 `
+  -DataVolume <第 1 步产出的 VOSR2Lite-Data.7z.001> `
+  -ShellExe   scripts\installer\VOSR2Lite.exe
+#    或手工：makensis /DAPP_VERSION=<应用版本> -DSRC_DATA=<...VOSR2Lite-Data.7z.001> `
+#      -DSRC_7ZA="C:\Program Files\7-Zip\7z.exe" setup.nsi
+#    （手工方式不生成 SHA256SUMS/provenance，仅供调试；正式出包走 build_setup.ps1）
 ```
 
 产物落在 `dist\desktop-release\`：
 
 | 文件 | 说明 |
 |---|---|
-| `VOSR2Lite-Data.7z.001..NNN` | 瘦包数据卷（根为 `app/`，含 `bootstrap/`），与安装器同目录分发 |
-| `VOSR2Lite-Runtime-cu128.zip.001..NNN` | 环境包：`-Mode runtime` 产出，供下载页获取 |
-| `downloads_catalog.json` | 环境包清单（随应用分发，离线也能展示；换环境包须同步发新版应用） |
+| `VOSR2Lite-Data.7z.001` | 瘦包数据卷（根为 `app/`，含 `bootstrap/`），已内嵌进单文件安装器本体 |
+| `VOSR2Lite-Runtime-cu128.zip.001..NNN` | 环境包：`-Mode runtime` 产出；**当前 `install_mode=online`，默认不下载分卷**，仅作离线路径保留 |
+| `downloads_catalog.json` | 环境包清单（随应用分发；`install_mode=online` 时页面直接 pip 在线装，`volumes` 为空是设计结果） |
 | `app-v<版本>.zip` + `.sha256` | 增量包（**zip 根即 `app/` 的内容**，不含 `app\` 外层包装） |
 | `SHA256SUMS.txt` / `manifest.json` / `upload-list.txt` | 校验清单与元信息 |
 
@@ -92,15 +98,18 @@ makensis /DAPP_VERSION=<应用版本> -DSRC_7ZA="C:\Program Files\7-Zip\7z.exe" 
 - **`bootstrap` 目录名三处必须一致**——`python_process.rs::detect_python_mode`、
   后端 `_runtime_dir()`、打包脚本 `$BootstrapDirName`。改名要三处同步，否则壳认不出引导态。
 
-实测（2026-10-30，Windows 11 / Rust 1.99.1）：壳 `17,209,344 B`（16.4 MiB）；安装器
-`4,032,621 B`（3.85 MiB，把 17.9 MB 载荷压到 22.4%）；增量包 `app-v0.2.1.zip` 529.8 KB；
-**瘦包数据卷 20.0 MB**（用最小解释器冒烟：载荷 66.8 MB / 2320 文件压到 20.0 MB，
-单卷即可，无需分卷）。对比旧的全量数据卷：本机 `model/` 12 GB + torch 运行时约需 8 个 1900MB 分卷。
+实测（2026-10-30，Windows 11 / Rust 1.99.1）：壳 `17,209,344 B`（16.4 MiB）；增量包
+`app-v0.2.1.zip` 529.8 KB；**瘦包数据卷 20.0 MB**（用最小解释器冒烟：载荷 66.8 MB /
+2320 文件压到 20.0 MB，单卷即可，无需分卷）。对比旧的全量数据卷：本机 `model/` 12 GB +
+torch 运行时约需 8 个 1900MB 分卷。
 
-安装器只内嵌壳与 `version.json`，数据卷里放旧基线；这样「壳更新」不需要重打数 GB 数据卷。
+数据卷（含应用代码 + 引导解释器）已内嵌进单文件安装器本体，不再需要另外下载分卷；
+这样「壳更新」不需要重打数 GB 数据卷。
 
-最终一次发布 = `VOSR2Lite-Setup-v<版本>.exe`（约 4 MB）+ `VOSR2Lite-Data.7z.001..NNN`（数 GB）
-+ `app-v<版本>.zip`（增量包，约 1 MB，走壳内更新）+ `SHA256SUMS`。
+最终一次发布 = `VOSR2Lite-Setup-v<版本>.exe`（单文件，内嵌数据卷）
++ `SHA256SUMS.txt` + `*.provenance.json`（构建溯源，强制随包发布）
++ `app-v<版本>.zip`（增量包，约 1 MB，走壳内更新）。构建与校验流程见
+`docs/安装包构建与溯源.md`。
 
 ## 版本口径（四仓统一）
 

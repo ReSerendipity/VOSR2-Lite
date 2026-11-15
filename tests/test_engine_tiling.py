@@ -627,3 +627,424 @@ def test_gaussian_weights_corners_are_nonzero():
     w = tiled_vae._gaussian_weights(512, 512, 1, "cpu")
     assert float(w.min()) > 0.0
     assert float(w.min()) < 1e-4  # 同时确实很小，说明是真正的边缘衰减
+
+
+# ── 多步 + 分块：fail-closed 守卫（P0-1）──────────────────────────────────
+@pytest.mark.parametrize("steps", [2, 20, 25])
+def test_multistep_tiling_guard_rejects(steps):
+    """多步采样一旦命中 DiT 分块必须拒绝：分块路径没有 CFG。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    with pytest.raises(ValueError, match="暂不支持分块"):
+        VOSR2Engine._check_multistep_tiling(steps, 512)
+
+
+@pytest.mark.parametrize("steps,tile", [(1, 512), (1, 0), (2, 0), (0, 0), (-1, 0)])
+def test_multistep_tiling_guard_allows(steps, tile):
+    """一步蒸馏、或未触发分块时（含非法步数）均放行（返回 False=不走分块 CFG）。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    assert VOSR2Engine._check_multistep_tiling(steps, tile) is False
+
+
+def test_multistep_tiling_guard_message_is_actionable():
+    """报错必须点明「丢 CFG」并给出两条出路：改一步 / 压到 ≤512px。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    with pytest.raises(ValueError) as exc:
+        VOSR2Engine._check_multistep_tiling(25, 512)
+    msg = str(exc.value)
+    assert "CFG" in msg
+    assert "steps=1" in msg
+    assert "512" in msg
+
+
+# ── 瓦片级进度上报（P0-2）────────────────────────────────────────────────
+class _FakeClock:
+    """可手动推进的假时钟，用于验证时间节流而不真的 sleep。"""
+
+    def __init__(self) -> None:
+        self.t = 0.0
+
+    def __call__(self) -> float:
+        return self.t
+
+
+def test_tile_reporter_first_tile_has_detail():
+    """首块立刻上报，并带「第 1 块 / 共 5 块」与按块计算的 ratio。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r, d: events.append((s, r, d)),
+        5,
+        stage="sample",
+        base=0.4,
+        span=0.45,
+        clock=_FakeClock(),
+    )
+    rep(1)
+    assert events[0][0] == "sample"
+    assert events[0][1] == pytest.approx(0.4 + 0.45 / 5)
+    assert events[0][2] == "第 1 块 / 共 5 块"
+
+
+def test_tile_reporter_throttles_middle_tiles():
+    """时间不推进时，中间块被节流，只剩首块与末块两次上报。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r, d: events.append(d),
+        6,
+        stage="sample",
+        base=0.0,
+        span=1.0,
+        clock=_FakeClock(),
+    )
+    for done in range(1, 7):
+        rep(done)
+    assert len(events) == 2
+    assert events[0] == "第 1 块 / 共 6 块"
+    assert events[-1] == "第 6 块 / 共 6 块"
+
+
+def test_tile_reporter_emits_after_interval():
+    """超过最小间隔后，中间块应放行上报。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    clock = _FakeClock()
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r, d: events.append(d),
+        6,
+        stage="sample",
+        base=0.0,
+        span=1.0,
+        clock=clock,
+    )
+    rep(1)
+    clock.t = 0.25  # > TILE_PROGRESS_INTERVAL(0.2)
+    rep(2)
+    assert events[-1] == "第 2 块 / 共 6 块"
+
+
+def test_tile_reporter_last_tile_forces_endpoint():
+    """末块即使没到间隔也必须上报，保证阶段终点（0.85）准确。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    seen = {}
+    rep = make_tile_reporter(
+        lambda s, r, d: seen.update(ratio=r),
+        4,
+        stage="sample",
+        base=0.4,
+        span=0.45,
+        clock=_FakeClock(),
+    )
+    rep(4)
+    assert seen["ratio"] == pytest.approx(0.85)
+
+
+def test_tile_reporter_supports_legacy_two_arg_callback():
+    """历史双参数回调（如 smoke 脚本）不应因新增 detail 参数而崩。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    events = []
+    rep = make_tile_reporter(
+        lambda s, r: events.append(r),
+        2,
+        stage="sample",
+        base=0.0,
+        span=1.0,
+        clock=_FakeClock(),
+    )
+    rep(1)
+    rep(2)
+    assert events == [0.5, 1.0]
+
+
+def test_tile_reporter_none_callback_is_noop():
+    """无回调时返回可调用的空实现，不抛异常。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+
+    rep = make_tile_reporter(None, 3, stage="sample", base=0.4, span=0.45)
+    assert rep(1) is None
+
+
+def test_tile_reporter_propagates_cancel():
+    """取消异常（协作式中断）必须透传，不能被进度层的兜底 try 吞掉。"""
+    from app.integrated_app.engines._core import make_tile_reporter
+    from app.integrated_app.exceptions import InferenceCancelled
+
+    def _cancel(*_a):
+        raise InferenceCancelled("task-1")
+
+    rep = make_tile_reporter(_cancel, 3, stage="sample", base=0.0, span=1.0, clock=_FakeClock())
+    with pytest.raises(InferenceCancelled):
+        rep(1)
+
+
+def test_tiled_inference_reports_tile_progress(monkeypatch):
+    """端到端（CPU）：分块主循环真的会把「第 x 块 / 共 y 块」推给回调。
+
+    用假的 VAE 编解码与假 DiT，只验证 wiring 与 ratio 端点，不依赖显存/权重。
+    """
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+    from vosr import tiled_vae
+
+    class _FakeDit:
+        def __init__(self) -> None:
+            self._p = torch.zeros(1, dtype=torch.float32)
+
+        def parameters(self):
+            return iter([self._p])
+
+        def __call__(self, inp, t_cur, t_nxt, fea):  # noqa: ANN001
+            return inp[:, :16] * 0.0  # 零速度 => z 不变，纯验证进度
+
+    monkeypatch.setattr(
+        tiled_vae, "encode_dispatch", lambda *_a, **_k: (torch.zeros(1, 16, 128, 128), None, None)
+    )
+    monkeypatch.setattr(tiled_vae, "decode_dispatch", lambda *_a, **_k: torch.zeros(1, 3, 64, 64))
+
+    events = []
+    tiled_vae_latent_inference(
+        _FakeDit(),
+        None,
+        None,
+        torch.zeros(1, 3, 1024, 1024),
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=1),
+        device="cpu",
+        progress_cb=lambda s, r, d="": events.append((s, r, d)),
+    )
+
+    details = [d for s, _r, d in events if s in ("venc", "sample") and d]
+    assert details, "分块循环应上报瓦片级 detail"
+    assert all(d.startswith("第 ") and "块 / 共" in d for d in details)
+    total = int(details[-1].rsplit("共 ", 1)[1].split(" 块", 1)[0])
+    assert total > 1, "1024² 输入应按 512 tile 切成多块"
+    sample_ratios = [r for s, r, _d in events if s == "sample"]
+    assert 0.4 < sample_ratios[0] < 0.5  # 首块略高于阶段起点
+    assert sample_ratios[-1] == pytest.approx(0.85)
+    assert max(r for _s, r, _d in events) == pytest.approx(1.0)
+
+
+# ── 分块 CFG：开关放行 + 瓦片内 cond/weak 双份合成 ─────────────────────────
+def test_tiled_cfg_switch_allows_multistep():
+    """打开 inference.tiled_cfg 时，多步 + 分块放行，并返回 True 表示走分块 CFG。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    assert VOSR2Engine._check_multistep_tiling(25, 512, True) is True
+    # 没触发分块的一步/无分块请求不需要 CFG 上下文
+    assert VOSR2Engine._check_multistep_tiling(1, 512, True) is False
+    assert VOSR2Engine._check_multistep_tiling(25, 0, True) is False
+
+
+def test_tiled_cfg_switch_off_keeps_fail_closed():
+    """开关关闭即回退旧行为：明确拒绝，并给出打开 tiled_cfg 的第三条出路。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    with pytest.raises(ValueError, match="暂不支持分块") as exc:
+        VOSR2Engine._check_multistep_tiling(25, 512, False)
+    assert "tiled_cfg" in str(exc.value)
+    # 引擎构造默认开启，可用 False 关掉
+    assert VOSR2Engine("x", "y").tiled_cfg_enabled is True
+    assert VOSR2Engine("x", "y", tiled_cfg=False).tiled_cfg_enabled is False
+
+
+def test_tiled_inference_rejects_multistep_without_cfg():
+    """第二道守卫：多步却未给 CFG 上下文时，分块循环自己也要拒绝。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    with pytest.raises(ValueError, match="CFG 上下文"):
+        tiled_vae_latent_inference(
+            None,
+            None,
+            None,
+            torch.zeros(1, 3, 64, 64),
+            SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=4),
+            device="cpu",
+        )
+
+
+def test_tiled_cfg_in_window_boundaries():
+    """CFG 窗口闭区间语义与上游一致（t_cur ∈ [t_start, t_end]）。"""
+    from app.integrated_app.engines._core import TiledCfg
+
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.5, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+    assert cfg.in_window(torch.tensor(1.0)) is True
+    assert cfg.in_window(torch.tensor(0.5)) is True
+    assert cfg.in_window(torch.tensor(0.4)) is False
+
+
+class _RecordingDit:
+    """记录每次前向的 batch/t/r 与 z 形态；cond=1、weak=3 便于验证合成。"""
+
+    def __init__(self) -> None:
+        self._p = torch.zeros(1, dtype=torch.float32)
+        self.calls: list[dict] = []
+
+    def parameters(self):
+        return iter([self._p])
+
+    def __call__(self, inp, t, r=None, z=None):  # noqa: ANN001
+        half = inp.shape[0] // 2
+        z_second_zero = None
+        if isinstance(z, list):
+            z_second_zero = bool(float(z[0][1].abs().max()) == 0.0) if half else None
+        self.calls.append(
+            {
+                "batch": int(inp.shape[0]),
+                "t": float(t[0]) if t.numel() else 0.0,
+                "r": None if r is None else float(r[0]),
+                "z": None if z is None else "list",
+                "z_second_zero": z_second_zero,
+            }
+        )
+        out = torch.empty_like(inp[:, :16])  # DiT 只输出 z 的 16 通道速度
+        if half:
+            out[:half] = 1.0  # cond
+            out[half:] = 3.0  # weak
+        else:
+            out[:] = 1.0
+        return out
+
+
+def _patch_vae(monkeypatch, latent_side: int = 32):
+    from vosr import tiled_vae
+
+    monkeypatch.setattr(
+        tiled_vae,
+        "encode_dispatch",
+        lambda *_a, **_k: (torch.zeros(1, 16, latent_side, latent_side), None, None),
+    )
+    # 解码直接回传 latent 前 3 通道，便于断言采样后的 z
+    monkeypatch.setattr(
+        tiled_vae, "decode_dispatch", lambda _vae, z, *_a, **_k: z.float()[:, :3]
+    )
+
+
+def test_tiled_cfg_composes_cond_and_weak(monkeypatch):
+    """单步（窗口内）：一次前向 batch=2，u = weak + cfg*(cond-weak) = -1。
+
+    零构造：cond=1、weak=3、cfg_scale=2 → u=-1 → z 每步 +dt（单步 dt=1）。
+    """
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._core import TiledCfg
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    _patch_vae(monkeypatch)
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.0, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    lq = torch.zeros(1, 3, 256, 256)
+    torch.manual_seed(11)
+    z0 = torch.randn(1, 16, 32, 32)
+    torch.manual_seed(11)
+    out = tiled_vae_latent_inference(
+        dit,
+        None,
+        None,
+        lq,
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=2),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    assert len(dit.calls) == 2, "latent 32² 落在单瓦片内，2 步应各一次前向"
+    assert all(c["batch"] == 2 for c in dit.calls)
+    assert all(c["r"] is None for c in dit.calls), "多步应走 model(x, t, z=fea)，不用 r 位"
+    # 2 步 → t_seq=[1,0.5,0]，dt=0.5，u=-1 → z 累加 2×0.5=1
+    assert torch.allclose(out, z0[:, :3] + 1.0), "每步 -dt*u 且 u=-1 → z 累计 +1"
+
+
+def test_tiled_cfg_window_skips_weak_outside(monkeypatch):
+    """窗口外只做单份前向（batch=1）：t=0.25 那步不拼 weak。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._core import TiledCfg
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    _patch_vae(monkeypatch)
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.5, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    tiled_vae_latent_inference(
+        dit,
+        None,
+        None,
+        torch.zeros(1, 3, 256, 256),
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=4),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    # t_seq = 1.0 / 0.75 / 0.5 / 0.25：前三步在窗口内 batch=2，最后一步 batch=1
+    assert [c["batch"] for c in dit.calls] == [2, 2, 2, 1]
+    assert [round(c["t"], 2) for c in dit.calls] == [1.0, 0.75, 0.5, 0.25]
+
+
+def test_tiled_cfg_weak_features_are_zeroed(monkeypatch):
+    """weak 分支的 venc 特征按上游取 zeros_like：z 第二半全 0。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines import _tiling
+    from app.integrated_app.engines._core import TiledCfg
+
+    _patch_vae(monkeypatch)
+    monkeypatch.setattr(
+        _tiling, "get_venc_features", lambda *_a, **_k: [torch.ones(1, 4, 8, 8)]
+    )
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.0, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    _tiling.tiled_vae_latent_inference(
+        dit,
+        None,
+        object(),  # 只求 venc 非 None，特征由上面的 monkeypatch 提供
+        torch.zeros(1, 3, 256, 256),
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=2),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    assert dit.calls[0]["z"] == "list"
+    assert dit.calls[0]["z_second_zero"] is True
+
+
+def test_tiled_cfg_mixes_multiple_tiles(monkeypatch):
+    """多瓦片（2×2 网格）下每块都拼双份 batch，且合成值仍为 -1。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._core import TiledCfg
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    _patch_vae(monkeypatch, latent_side=96)
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.0, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    lq = torch.zeros(1, 3, 768, 768)
+    torch.manual_seed(3)
+    z0 = torch.randn(1, 16, 96, 96)
+    torch.manual_seed(3)
+    out = tiled_vae_latent_inference(
+        dit,
+        None,
+        None,
+        lq,
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=2),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    tiles = len(dit.calls) // 2  # 2 步 → 每块两次前向
+    assert tiles > 1, "96² latent 按 64 tile 应切成多块"
+    assert all(c["batch"] == 2 for c in dit.calls)
+    # 每块速度都是 -1，Gaussian 混合归一化后整图仍为 -1 → 2 步共 +1
+    assert torch.allclose(out, z0[:, :3] + 1.0)

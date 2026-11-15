@@ -11,7 +11,13 @@
 
     const PRESET_KEY = 'vosr2-presets';
     const LAST_PARAMS_KEY = 'vosr2-last-params';
-    const MAX_OUTPUT_SIDE = 6144;
+    // 服务端注入的只读能力位（base.html: window.__APP_LIMITS__），缺省时按默认值走
+    const LIMITS = window.__APP_LIMITS__ || {};
+    const MAX_OUTPUT_SIDE = Number(LIMITS.max_output_side) || 6144;
+    // 输出长边超过此值会触发 DiT 分块（= 后端 engines/_tiling.py:_DIT_TILE_AUTO）
+    const MULTISTEP_TILE_SIDE = Number(LIMITS.multistep_tile_side) || 512;
+    // 服务端关闭分块 CFG（inference.tiled_cfg=false）时，多步+分块会被拒绝
+    const TILED_CFG = LIMITS.tiled_cfg !== false;
     const PREVIEW_MAX = 1600;
     const ACCEPT_RE = /\.(png|jpe?g|webp|bmp|tiff?)$/i;
     const ACCEPT_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp',
@@ -75,6 +81,7 @@
             batchIndex: 0,
             cancelRequested: false,
             fromHistory: false,
+            tilingBlocked: false,  // 多步 + 大图被服务端拦截（前置校验态）
         };
 
         const viewer = window.VOSR2Viewer
@@ -435,9 +442,61 @@
                 else {
                     const li = el.queueList.querySelector(`[data-idx="${state.files.indexOf(item)}"]`);
                     if (li) paintQueueRow(li, item);
+                    updateEstimate();
                 }
             };
             img.src = item.url;
+        }
+
+        // 多步 + 输出长边 >512 会触发 DiT 分块：提前给出耗时提示；
+        // 若服务端关掉了分块 CFG（inference.tiled_cfg=false），提交后必然被拒绝，
+        // 因此在这一步就直接拦住，而不是等点「开始修复」再报错。
+        function tilingCheck(ow, oh, steps) {
+            const long = Math.max(ow, oh);
+            if (steps <= 1 || long <= MULTISTEP_TILE_SIDE) return null;
+            const tiles = Math.ceil(ow / MULTISTEP_TILE_SIDE) * Math.ceil(oh / MULTISTEP_TILE_SIDE);
+            if (!TILED_CFG) {
+                return {
+                    blocked: true,
+                    text: t('restore.multistep_tiling_blocked',
+                        '多步 + 输出长边 >512 会被服务端拒绝：请改用 1 步，或把输出压到 512px 内'),
+                };
+            }
+            return {
+                blocked: false,
+                text: t('restore.multistep_tiling_warn',
+                    '多步 + 大图将走分块 CFG（约 {n} 块，耗时约 ×2 起），建议先用小图试跑')
+                    .replace('{n}', String(tiles)),
+            };
+        }
+
+        // 按当前参数与已探明尺寸求最坏情况；多图时任一超限即算命中
+        function tilingState() {
+            const p = readParams();
+            const steps = Math.max(1, Number(paramFields.steps.value) || 1);
+            if (steps <= 1) return null;
+            let hit = null;
+            state.files.forEach(item => {
+                if (!item.natural) return;
+                const c = tilingCheck(item.natural.w * p.upscale, item.natural.h * p.upscale, steps);
+                if (c && (!hit || c.blocked)) hit = c;
+            });
+            return hit;
+        }
+
+        function syncStartGuard(tiling) {
+            if (tiling && tiling.blocked) {
+                state.tilingBlocked = true;
+                el.btnStart.disabled = true;
+                el.startHint.textContent = tiling.text;
+                return;
+            }
+            if (state.tilingBlocked) {
+                state.tilingBlocked = false;
+                el.btnStart.disabled = !state.files.length;
+                el.startHint.textContent = state.files.length
+                    ? '' : t('restore.need_file', '请先选择图片');
+            }
         }
 
         function updateEstimate() {
@@ -454,6 +513,7 @@
             //   25 步 0.26MP（512²）≈ 9.3s（实测 8.8s）
             const secs = Math.round(1.5 + steps * (0.3 + 0.17 * mp * mp));
             const total = state.files.length;
+            const tiling = tilingState();
 
             if (total === 1) {
                 el.pickedMeta.textContent = [
@@ -464,15 +524,18 @@
                     `${t('restore.est_output', '预计输出')} ${ow}×${oh}`,
                     `${t('restore.est_time', '预计耗时')} ~${formatDuration(secs)}`,
                 ].join(' · ') + (overLimit
-                    ? ' · ' + t('restore.over_limit_hint', '超出上限，请降低倍率') : '');
-                el.pickedEst.classList.toggle('is-warn', overLimit);
+                    ? ' · ' + t('restore.over_limit_hint', '超出上限，请降低倍率') : '')
+                    + (tiling ? ' · ' + tiling.text : '');
+                el.pickedEst.classList.toggle('is-warn', overLimit || !!tiling);
             } else {
                 el.queueSummary.textContent = [
                     `${total} ${t('restore.queue_count', '张')}`,
                     `${t('restore.est_output', '预计输出')} ${ow}×${oh}`,
                     `~${formatDuration(secs * total)}`,
-                ].join(' · ');
+                    tiling ? tiling.text : '',
+                ].filter(Boolean).join(' · ');
             }
+            syncStartGuard(tiling);
         }
 
         el.dropzone.addEventListener('click', e => {
@@ -545,6 +608,13 @@
 
         async function startRun() {
             const p = readParams();
+            // 双保险：按钮已被禁用，但「重试」等入口也可能进来
+            const tiling = tilingState();
+            if (tiling && tiling.blocked) {
+                VOSR2.toast(tiling.text, 'error');
+                syncStartGuard(tiling);
+                return;
+            }
             persistParams();
             state.cancelRequested = false;
             el.btnStart.disabled = true;
@@ -601,6 +671,18 @@
                 refreshRow(item);
             }
 
+            // 取消后**未执行**的项：循环只在开头 break，不回写状态的话它们会一直
+            // 停在 idle（显示「排队中」），看起来像「还在等」。统一标成「已取消」，
+            // 与真正跑了一半被取消的那张同文案；不计入失败，重试会被 reset 回 idle。
+            if (state.cancelRequested) {
+                state.files.forEach(it => {
+                    if (it.status === 'idle') {
+                        it.status = 'cancelled';
+                        refreshRow(it);
+                    }
+                });
+            }
+
             stopTimer();
             el.progressCard.hidden = true;
             el.btnStart.disabled = false;
@@ -609,7 +691,11 @@
                 showResult(lastOk.taskId, { size: lastOk.size });
             }
             if (failed) {
-                finishWithError(t('restore.batch_failed', '有任务失败') + `: ${failed}`);
+                // 单张失败时把服务端的 reason 上屏。原来只显示「有任务失败: 1」，
+                // 用户看不到为什么失败（队列行在单文件时又是隐藏的，等于原因被吞掉）。
+                const firstErr = state.files.find(f => f.status === 'failed' && f.error);
+                const detail = single && firstErr ? `: ${firstErr.error}` : `: ${failed}`;
+                finishWithError(t('restore.batch_failed', '有任务失败') + detail);
             } else if (state.cancelRequested && !lastOk) {
                 VOSR2.toast(t('restore.cancelled', '已取消'), 'info');
             }
@@ -719,6 +805,7 @@
             el.errorMsg.textContent = msg;
             el.errorCard.hidden = false;
             el.btnStart.disabled = !state.files.length;
+            syncStartGuard(tilingState());
         }
 
         el.btnRetry.addEventListener('click', () => {

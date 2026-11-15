@@ -105,6 +105,8 @@
       "off": "關閉"
     },
     "tile_hint": "分塊選「自動」時，引擎會按輸出尺寸與視訊記憶體自動開啟分塊，防止大圖爆視訊記憶體；輸出邊長上限 6144px，超出請降低倍率。",
+    "multistep_tiling_warn": "多步 + 大圖將走分塊 CFG（約 {n} 塊，耗時約 ×2 起），建議先用小圖試跑",
+    "multistep_tiling_blocked": "多步 + 輸出長邊 >512 會被服務端拒絕：請改用 1 步，或把輸出壓到 512px 內",
     "vae_tile_size": "VAE 分塊（像素）",
     "start": "開始修復",
     "need_file": "請先選擇圖片",
@@ -189,7 +191,9 @@
     "license": "許可證",
     "usage": "快速上手",
     "usage_download": "1. 下載模型權重（約 6.6 GB，預設走 hf-mirror 映象）：",
-    "usage_start": "2. 啟動服務（預設 127.0.0.1:7871）："
+    "usage_start": "2. 啟動服務（預設 127.0.0.1:7871）：",
+    "social": "關注我們",
+    "social_desc": "產品動態、更新與使用技巧："
   },
   "downloads": {
     "title": "下載管理",

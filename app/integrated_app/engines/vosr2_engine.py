@@ -42,6 +42,7 @@ from app.integrated_app.engines._core import (
     EngineStatus,
     ProgressCb,
     RestoreParams,
+    TiledCfg,
     _empty_cache,
     _pad_to_multiple,
     _pad_to_square,
@@ -92,12 +93,15 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
         device: str = "auto",
         progress_cb: ProgressCb | None = None,
         max_output_side: int | None = None,
+        tiled_cfg: bool = True,
     ):
         self.checkpoint_name = checkpoint_name
         self.model_root = model_root
         self.device_pref = device
         self._progress_cb = progress_cb
         self.max_output_side = int(max_output_side or MAX_OUTPUT_SIDE_DEFAULT)
+        # 分块 CFG 开关（config inference.tiled_cfg）：关掉即回退旧的 fail-closed
+        self.tiled_cfg_enabled = bool(tiled_cfg)
 
         self.args: types.SimpleNamespace | None = None
         self.vae = None
@@ -209,6 +213,48 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
                 f"换更大的输入图，或把采样步数改为 1（一步蒸馏）"
             )
 
+    @staticmethod
+    def _check_multistep_tiling(steps: int, dit_tile: int, allow_tiled_cfg: bool = False) -> bool:
+        """多步采样 + DiT 分块 的守卫（P0-1）。
+
+        分块路径早期每瓦片只做单次前向、不做 CFG 拼接，多步采样叠加分块会
+        静默丢掉 cfg_scale（输出风格与不分块不一致且无提示）。现在分块路径
+        已实现瓦片内 cond/weak 双份合成（``_tiling.py``），因此：
+
+        - ``allow_tiled_cfg=True``（config ``inference.tiled_cfg: true``）→ 放行，
+          返回 True 表示走分块 CFG；
+        - 否则沿用旧行为 fail-closed（可配置回退开关），返回 False。
+
+        独立成静态方法，便于单测覆盖（``restore()`` 需要真实权重）。
+        """
+        if steps > 1 and dit_tile and dit_tile > 0:
+            if allow_tiled_cfg:
+                return True
+            logger.warning(
+                f"[CFG] 未生效: steps={steps} 命中 DiT 分块（tile={dit_tile}），已拒绝执行"
+            )
+            raise ValueError(
+                f"多步采样（steps={steps}）暂不支持分块推理：分块路径未实现 CFG，"
+                f"继续执行会静默丢失 cfg_scale（本次将触发 DiT tile={dit_tile}）。"
+                f"请改为：①采样步数改为 steps=1（一步蒸馏）；"
+                f"②把输出长边降到 ≤512px，使 DiT 分块不触发；"
+                f"③或在 config.yaml 打开 inference.tiled_cfg（瓦片内 CFG，较慢但正确）。"
+            )
+        return False
+
+    def _log_cfg_status(self, steps: int, mode: str = "full") -> None:
+        """日志标注本次采样的 CFG 生效方式（整图 / 分块 / 未启用）。"""
+        if steps > 1:
+            how = "分块路径，瓦片内 cond/weak 双份" if mode == "tiled" else "整图"
+            logger.info(
+                f"[CFG] 已生效（{how}）: steps={steps}, "
+                f"cfg_scale={getattr(self.vosr, 'cfg_scale', 'n/a')}, "
+                f"窗口=[{getattr(self.vosr, 't_start', 'n/a')}, "
+                f"{getattr(self.vosr, 't_end', 'n/a')}]"
+            )
+        else:
+            logger.info("[CFG] 未启用: 一步蒸馏路径无 CFG（steps=1）")
+
     def _effective_args(self, params: RestoreParams) -> types.SimpleNamespace:
         """把单次请求参数叠加到检查点 args 上（不改动 self.args）。"""
         args = types.SimpleNamespace(**vars(self.args))
@@ -251,6 +297,26 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
         )
         args.tile_size = dit_tile
         args.vae_tile_size = vae_tile
+        # 多步 + 分块：inference.tiled_cfg 开启时走瓦片内 cond/weak 双份 CFG，
+        # 关闭时回退到旧的 fail-closed（明确拒绝，不静默降级）
+        use_tiled_cfg = self._check_multistep_tiling(
+            params.steps, dit_tile, self.tiled_cfg_enabled
+        )
+        self._log_cfg_status(params.steps, "tiled" if use_tiled_cfg else "full")
+        cfg_ctx: TiledCfg | None = None
+        if use_tiled_cfg:
+            vosr = self.vosr
+            assert vosr is not None  # 多步检查点必然已构造 VOSR
+            strengths = [float(s) for s in (args.weak_cond_strength_aelq_list or [0.0, 0.0])]
+            alpha = sum(strengths[:2]) / 2.0  # 与上游 vosr/vosr.py:307 一致
+            cfg_ctx = TiledCfg(
+                cfg_scale=float(vosr.cfg_scale),
+                t_start=float(vosr.t_start),
+                t_end=float(vosr.t_end),
+                weak_fn=lambda lat: vosr.interpolate(
+                    lat, torch.zeros_like(lat), alpha, vosr.interp_type
+                ),
+            )
         if dit_tile or vae_tile:
             logger.info(
                 f"分块推理: 输出 {output_w}x{output_h}px, "
@@ -271,7 +337,14 @@ class VOSR2Engine(WeightsMixin, LoaderMixin, SamplingMixin):
         with torch.no_grad():
             if dit_tile and dit_tile > 0:
                 sr_tensor = tiled_vae_latent_inference(
-                    self.dit, self.vae, self.venc, lq, args, device=dev, progress_cb=cb
+                    self.dit,
+                    self.vae,
+                    self.venc,
+                    lq,
+                    args,
+                    device=dev,
+                    progress_cb=cb,
+                    cfg=cfg_ctx,
                 )
                 _empty_cache()
             else:

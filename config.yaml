@@ -61,6 +61,10 @@ inference:
   # 输出边长硬上限（像素）。超过直接报错并建议降低倍率，避免产生
   # 数小时且必然 OOM 的任务。
   max_output_side: 6144
+  # 多步采样在分块路径的 CFG 实现（2026-11 新增）。true = 瓦片内做 cond/weak
+  # 双份前向再按 cfg_scale 合成（正确但耗时约翻倍）；false = 回退旧行为，
+  # 多步 + 输出长边 >512px 直接拒绝（不做隐式降级）。
+  tiled_cfg: true
   # 颜色对齐方式: wavelet | adain | nofix
   align_methods:
   - wavelet

@@ -50,7 +50,9 @@ echo [3/3] Installing dependencies (this may take a few minutes)...
 :: 会顶包 cu128 版，导致 cuda_available=False）。
 set "PIP_CONFIG_FILE=NUL"
 "%PYTHON_CMD%" -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
-"%PYTHON_CMD%" -m pip install -r "%~dp0requirements.txt"
+:: torch 已从 CUDA 索引装好，恢复镜像配置后按锁文件安装其余依赖（锁内 torch 钉版会被已装版本满足）
+set "PIP_CONFIG_FILE="
+"%PYTHON_CMD%" -m pip install -r "%~dp0requirements-lock.txt"
 "%PYTHON_CMD%" -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"
 if errorlevel 1 (
     echo.

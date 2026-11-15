@@ -16,9 +16,10 @@
     "min_app_version": "0.2.1",
     "volumes": [],
     "install_mode": "online",
+    "size_bytes_kind": "installed_footprint",
     "index_url": "https://download.pytorch.org/whl/cu128",
     "pip_extra_index": "https://pypi.tuna.tsinghua.edu.cn/simple",
-    "note": "install_mode=online：页内点安装时后端直接 pip 官方索引安装 （torch 家族 + 生态包），无需下载预置分卷。"
+    "note": "install_mode=online：页内点安装时后端直接 pip 官方索引安装（torch 家族 + 生态包）。因此 `volumes` 为**空数组是设计结果**，不是缺字段；后端在 online 模式下不会读取它。`size_bytes` 的含义由 `size_bytes_kind` 标注：这里是**安装后磁盘占用估算**（torch 家族 wheel + 依赖解包后约 2.9 GB），不是下载体积——在线安装的实际下载量随索引与缓存浮动。"
   },
   "models": []
 }

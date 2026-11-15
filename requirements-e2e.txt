@@ -1,0 +1,13 @@
+# E2E（浏览器级）测试依赖（TD-014）
+#
+# 刻意与 requirements-dev.txt 分开：浏览器 + 二进制约 150 MB，日常单测与 CI 的
+# pytest 都不需要它，装进 dev 依赖只会拖慢每次冷装。
+#
+# 用法：
+#   .venv\Scripts\python.exe -m pip install -r requirements-e2e.txt
+#   .venv\Scripts\python.exe -m playwright install chromium
+#   .venv\Scripts\python.exe -m pytest tests/e2e -q
+#
+# 版本钉死：Playwright 的浏览器构建号与 python 包版本绑定，范围版本会让
+# 「已装的浏览器」和「当前包期望的构建」对不上，报 “browser is not found”。
+playwright==1.64.1

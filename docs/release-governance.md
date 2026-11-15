@@ -17,9 +17,9 @@
 ## 1. 版本号规范
 
 - 遵循 SemVer `MAJOR.MINOR.PATCH`；预发布用 `-alpha.N` / `-beta.N` / `-rc.N`（公共条款，§10.2）。
-- **唯一权威版本位**：`pyproject.toml` 顶层 `project.version`（当前 0.1.0）。
+- **唯一权威版本位**：`pyproject.toml` 顶层 `project.version`（当前 0.2.1；随每次发版同步，以该文件为准）。
 - 必须同步的其它版本位：
-  - `version.json` 的 `version` 字段（元数据，当前同为 0.1.0）。
+  - `version.json` 的 `version` 字段（元数据，当前同为 0.2.1）。
   - `CHANGELOG.md` 每个发版小节标题。
 - **漂移判定**：`release.yml` 的「版本一致性校验」步骤钉住 `tag == pyproject.toml == version.json`
   三者一致——漂一处即判红、直接失败。
@@ -79,7 +79,7 @@
   显存与权重可用时跑真实推理冒烟；演练在仓库外临时目录进行，不触碰远端与已装实例。
 - **最近演练**：2026-10-31（资产回退 + 代码 revert 双演练，真机推理冒烟通过；已知缺口
   v0.2.0 无 Release 资产，回滚目标为 v0.2.1 / v0.1.0。记录见
-  `docs/ROLLBACK_DRILL_2026-10-31.md`）。
+  `../_archive/执行记录/2026-11/ROLLBACK_DRILL_2026-10-31.md`）。
 
 ## 6. SLA / 错误预算
 
@@ -101,7 +101,7 @@
 
 | 占位符 | 采集来源 | 本仓取值 |
 |---|---|---|
-| 版本位文件与字段 | `pyproject.toml` | `project.version`（唯一权威，当前 0.1.0） |
+| 版本位文件与字段 | `pyproject.toml` | `project.version`（唯一权威，当前 0.2.1，截至 2026-11-03） |
 | 其它需同步版本位 | `grep -rn` 版本串 | `version.json` → `version`；`CHANGELOG.md` 发版小节标题 |
 | 版本一致性校验入口 | `.github/workflows/` | `release.yml`「版本一致性校验」步骤（tag == pyproject == version.json） |
 | 自动化方式 | `.github/workflows/` | 手动 tag（无 release-please） |
