@@ -641,10 +641,10 @@ def test_multistep_tiling_guard_rejects(steps):
 
 @pytest.mark.parametrize("steps,tile", [(1, 512), (1, 0), (2, 0), (0, 0), (-1, 0)])
 def test_multistep_tiling_guard_allows(steps, tile):
-    """一步蒸馏、或未触发分块时（含非法步数）均放行。"""
+    """一步蒸馏、或未触发分块时（含非法步数）均放行（返回 False=不走分块 CFG）。"""
     from app.integrated_app.engines.vosr2_engine import VOSR2Engine
 
-    assert VOSR2Engine._check_multistep_tiling(steps, tile) is None
+    assert VOSR2Engine._check_multistep_tiling(steps, tile) is False
 
 
 def test_multistep_tiling_guard_message_is_actionable():
@@ -830,3 +830,221 @@ def test_tiled_inference_reports_tile_progress(monkeypatch):
     assert 0.4 < sample_ratios[0] < 0.5  # 首块略高于阶段起点
     assert sample_ratios[-1] == pytest.approx(0.85)
     assert max(r for _s, r, _d in events) == pytest.approx(1.0)
+
+
+# ── 分块 CFG：开关放行 + 瓦片内 cond/weak 双份合成 ─────────────────────────
+def test_tiled_cfg_switch_allows_multistep():
+    """打开 inference.tiled_cfg 时，多步 + 分块放行，并返回 True 表示走分块 CFG。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    assert VOSR2Engine._check_multistep_tiling(25, 512, True) is True
+    # 没触发分块的一步/无分块请求不需要 CFG 上下文
+    assert VOSR2Engine._check_multistep_tiling(1, 512, True) is False
+    assert VOSR2Engine._check_multistep_tiling(25, 0, True) is False
+
+
+def test_tiled_cfg_switch_off_keeps_fail_closed():
+    """开关关闭即回退旧行为：明确拒绝，并给出打开 tiled_cfg 的第三条出路。"""
+    from app.integrated_app.engines.vosr2_engine import VOSR2Engine
+
+    with pytest.raises(ValueError, match="暂不支持分块") as exc:
+        VOSR2Engine._check_multistep_tiling(25, 512, False)
+    assert "tiled_cfg" in str(exc.value)
+    # 引擎构造默认开启，可用 False 关掉
+    assert VOSR2Engine("x", "y").tiled_cfg_enabled is True
+    assert VOSR2Engine("x", "y", tiled_cfg=False).tiled_cfg_enabled is False
+
+
+def test_tiled_inference_rejects_multistep_without_cfg():
+    """第二道守卫：多步却未给 CFG 上下文时，分块循环自己也要拒绝。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    with pytest.raises(ValueError, match="CFG 上下文"):
+        tiled_vae_latent_inference(
+            None,
+            None,
+            None,
+            torch.zeros(1, 3, 64, 64),
+            SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=4),
+            device="cpu",
+        )
+
+
+def test_tiled_cfg_in_window_boundaries():
+    """CFG 窗口闭区间语义与上游一致（t_cur ∈ [t_start, t_end]）。"""
+    from app.integrated_app.engines._core import TiledCfg
+
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.5, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+    assert cfg.in_window(torch.tensor(1.0)) is True
+    assert cfg.in_window(torch.tensor(0.5)) is True
+    assert cfg.in_window(torch.tensor(0.4)) is False
+
+
+class _RecordingDit:
+    """记录每次前向的 batch/t/r 与 z 形态；cond=1、weak=3 便于验证合成。"""
+
+    def __init__(self) -> None:
+        self._p = torch.zeros(1, dtype=torch.float32)
+        self.calls: list[dict] = []
+
+    def parameters(self):
+        return iter([self._p])
+
+    def __call__(self, inp, t, r=None, z=None):  # noqa: ANN001
+        half = inp.shape[0] // 2
+        z_second_zero = None
+        if isinstance(z, list):
+            z_second_zero = bool(float(z[0][1].abs().max()) == 0.0) if half else None
+        self.calls.append(
+            {
+                "batch": int(inp.shape[0]),
+                "t": float(t[0]) if t.numel() else 0.0,
+                "r": None if r is None else float(r[0]),
+                "z": None if z is None else "list",
+                "z_second_zero": z_second_zero,
+            }
+        )
+        out = torch.empty_like(inp[:, :16])  # DiT 只输出 z 的 16 通道速度
+        if half:
+            out[:half] = 1.0  # cond
+            out[half:] = 3.0  # weak
+        else:
+            out[:] = 1.0
+        return out
+
+
+def _patch_vae(monkeypatch, latent_side: int = 32):
+    from vosr import tiled_vae
+
+    monkeypatch.setattr(
+        tiled_vae,
+        "encode_dispatch",
+        lambda *_a, **_k: (torch.zeros(1, 16, latent_side, latent_side), None, None),
+    )
+    # 解码直接回传 latent 前 3 通道，便于断言采样后的 z
+    monkeypatch.setattr(
+        tiled_vae, "decode_dispatch", lambda _vae, z, *_a, **_k: z.float()[:, :3]
+    )
+
+
+def test_tiled_cfg_composes_cond_and_weak(monkeypatch):
+    """单步（窗口内）：一次前向 batch=2，u = weak + cfg*(cond-weak) = -1。
+
+    零构造：cond=1、weak=3、cfg_scale=2 → u=-1 → z 每步 +dt（单步 dt=1）。
+    """
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._core import TiledCfg
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    _patch_vae(monkeypatch)
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.0, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    lq = torch.zeros(1, 3, 256, 256)
+    torch.manual_seed(11)
+    z0 = torch.randn(1, 16, 32, 32)
+    torch.manual_seed(11)
+    out = tiled_vae_latent_inference(
+        dit,
+        None,
+        None,
+        lq,
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=2),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    assert len(dit.calls) == 2, "latent 32² 落在单瓦片内，2 步应各一次前向"
+    assert all(c["batch"] == 2 for c in dit.calls)
+    assert all(c["r"] is None for c in dit.calls), "多步应走 model(x, t, z=fea)，不用 r 位"
+    # 2 步 → t_seq=[1,0.5,0]，dt=0.5，u=-1 → z 累加 2×0.5=1
+    assert torch.allclose(out, z0[:, :3] + 1.0), "每步 -dt*u 且 u=-1 → z 累计 +1"
+
+
+def test_tiled_cfg_window_skips_weak_outside(monkeypatch):
+    """窗口外只做单份前向（batch=1）：t=0.25 那步不拼 weak。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._core import TiledCfg
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    _patch_vae(monkeypatch)
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.5, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    tiled_vae_latent_inference(
+        dit,
+        None,
+        None,
+        torch.zeros(1, 3, 256, 256),
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=4),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    # t_seq = 1.0 / 0.75 / 0.5 / 0.25：前三步在窗口内 batch=2，最后一步 batch=1
+    assert [c["batch"] for c in dit.calls] == [2, 2, 2, 1]
+    assert [round(c["t"], 2) for c in dit.calls] == [1.0, 0.75, 0.5, 0.25]
+
+
+def test_tiled_cfg_weak_features_are_zeroed(monkeypatch):
+    """weak 分支的 venc 特征按上游取 zeros_like：z 第二半全 0。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines import _tiling
+    from app.integrated_app.engines._core import TiledCfg
+
+    _patch_vae(monkeypatch)
+    monkeypatch.setattr(
+        _tiling, "get_venc_features", lambda *_a, **_k: [torch.ones(1, 4, 8, 8)]
+    )
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.0, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    _tiling.tiled_vae_latent_inference(
+        dit,
+        None,
+        object(),  # 只求 venc 非 None，特征由上面的 monkeypatch 提供
+        torch.zeros(1, 3, 256, 256),
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=2),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    assert dit.calls[0]["z"] == "list"
+    assert dit.calls[0]["z_second_zero"] is True
+
+
+def test_tiled_cfg_mixes_multiple_tiles(monkeypatch):
+    """多瓦片（2×2 网格）下每块都拼双份 batch，且合成值仍为 -1。"""
+    from types import SimpleNamespace
+
+    from app.integrated_app.engines._core import TiledCfg
+    from app.integrated_app.engines._tiling import tiled_vae_latent_inference
+
+    _patch_vae(monkeypatch, latent_side=96)
+    dit = _RecordingDit()
+    cfg = TiledCfg(cfg_scale=2.0, t_start=0.0, t_end=1.0, weak_fn=lambda lat: lat * 0.15)
+
+    lq = torch.zeros(1, 3, 768, 768)
+    torch.manual_seed(3)
+    z0 = torch.randn(1, 16, 96, 96)
+    torch.manual_seed(3)
+    out = tiled_vae_latent_inference(
+        dit,
+        None,
+        None,
+        lq,
+        SimpleNamespace(tile_size=512, tile_overlap=32, infer_steps=2),
+        device="cpu",
+        cfg=cfg,
+    )
+
+    tiles = len(dit.calls) // 2  # 2 步 → 每块两次前向
+    assert tiles > 1, "96² latent 按 64 tile 应切成多块"
+    assert all(c["batch"] == 2 for c in dit.calls)
+    # 每块速度都是 -1，Gaussian 混合归一化后整图仍为 -1 → 2 步共 +1
+    assert torch.allclose(out, z0[:, :3] + 1.0)

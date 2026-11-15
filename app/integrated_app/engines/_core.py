@@ -149,3 +149,28 @@ def _pad_to_square(x: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
         return x, (h, w)
     padded = torch.nn.functional.pad(x, (0, side - w, 0, side - h), mode="reflect")
     return padded, (h, w)
+
+
+@dataclass
+class TiledCfg:
+    """分块路径的 CFG 上下文（仅多步采样 + 开启分块 CFG 时构造）。
+
+    字段与上游 ``VOSR.sample_multistep_fm``（``vosr/vosr.py:301-352``）一一对应：
+
+    - ``cfg_scale``：cond/weak 合成系数；
+    - ``t_start`` / ``t_end``：CFG 生效的时间窗口（窗口外单份前向，省一半算力）；
+    - ``weak_fn``：把 latent 映射为弱条件 latent（上游按
+      ``weak_cond_strength_aelq_list`` 均值做 ``interpolate``，``lin`` 即 alpha*latent）。
+
+    瓦片内对 ``weak_fn(latent)`` 的同一切片取用，因此弱条件与 cond 的空间位置严格对齐。
+    """
+
+    cfg_scale: float
+    t_start: float
+    t_end: float
+    weak_fn: Callable[[torch.Tensor], torch.Tensor]
+
+    def in_window(self, t: torch.Tensor) -> bool:
+        """当前时间步是否处于 CFG 窗口（语义同上游 ``t_cur <= t_end and t_cur >= t_start``）。"""
+        # 显式拆成两个 bool()：``and`` 对 tensor 直接短路会触发歧义告警
+        return bool(t <= self.t_end) and bool(t >= self.t_start)

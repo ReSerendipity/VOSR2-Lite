@@ -105,6 +105,8 @@
       "off": "Off"
     },
     "tile_hint": "With tiling on Auto, the engine enables tiling based on output size and VRAM to prevent OOM on large images. Output side is capped at 6144px; lower the upscale factor if exceeded.",
+    "multistep_tiling_warn": "Multi-step + large output uses tiled CFG (~{n} tiles, ~2x slower or more); try a small image first",
+    "multistep_tiling_blocked": "Multi-step with output side >512 is rejected by the server: use 1 step, or keep output within 512px",
     "vae_tile_size": "VAE tile size (px)",
     "start": "Start restore",
     "need_file": "Select an image first",

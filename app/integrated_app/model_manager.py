@@ -172,12 +172,14 @@ class ModelManager:
             self._engine.unload()
         device = self.config.get("model.device", "auto")
         max_output_side = self.config.get("inference.max_output_side", None)
+        tiled_cfg = self.config.get("inference.tiled_cfg", True)
         self._engine = VOSR2Engine(
             name,
             self.model_root,
             device=device,
             progress_cb=progress_cb,
             max_output_side=max_output_side,
+            tiled_cfg=bool(tiled_cfg),
         )
         self._engine.load()
         self._engine_name = name

@@ -55,9 +55,28 @@ def auto_discover_routes(app: FastAPI) -> None:
 
 
 def render_page(request: Request, template_name: str, active_page: str = "", **ctx) -> HTMLResponse:
-    """渲染页面模板，注入通用上下文（t / locales / version / i18n_flat / nonce）。"""
+    """渲染页面模板，注入通用上下文（t / locales / version / i18n_flat / nonce / app_limits）。"""
     i18n = request.app.state.i18n
     from app.integrated_app.i18n import get_flat_translations
+
+    # 前端只读能力位：分块 CFG 开关（决定「多步 + 大图」是提示还是直接拦截）。
+    # 取不到配置时按默认值回退，页面照常渲染。
+    config = getattr(getattr(request.app.state, "model_manager", None), "config", None)
+    app_limits = {
+        "max_output_side": 6144,
+        "tiled_cfg": True,
+        "multistep_tile_side": 512,  # = engines/_tiling.py:_DIT_TILE_AUTO
+    }
+    if config is not None:
+        try:
+            app_limits["max_output_side"] = int(
+                config.get("inference.max_output_side", app_limits["max_output_side"])
+            )
+            app_limits["tiled_cfg"] = bool(
+                config.get("inference.tiled_cfg", app_limits["tiled_cfg"])
+            )
+        except (TypeError, ValueError):  # 配置写坏时不拖垮页面
+            pass
 
     page_ctx = {
         "request": request,
@@ -69,6 +88,7 @@ def render_page(request: Request, template_name: str, active_page: str = "", **c
         "app_version": get_app_version(),
         "i18n_flat": get_flat_translations(i18n.current_locale),
         "csp_nonce": secrets.token_urlsafe(16),
+        "app_limits": app_limits,
     }
     page_ctx.update(ctx)
     env = request.app.state.jinja_env

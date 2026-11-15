@@ -14,7 +14,12 @@ import torch.nn.functional as F
 from loguru import logger
 from torchvision.transforms import Normalize
 
-from app.integrated_app.engines._core import ProgressCb, _empty_cache, make_tile_reporter
+from app.integrated_app.engines._core import (
+    ProgressCb,
+    TiledCfg,
+    _empty_cache,
+    make_tile_reporter,
+)
 from app.integrated_app.exceptions import InferenceCancelled
 from vosr import tiled_vae
 
@@ -50,7 +55,14 @@ def auto_tile_sizes(
 
 
 def tiled_vae_latent_inference(
-    model, vae, venc, lq_tensor, args, device="cuda", progress_cb: ProgressCb | None = None
+    model,
+    vae,
+    venc,
+    lq_tensor,
+    args,
+    device="cuda",
+    progress_cb: ProgressCb | None = None,
+    cfg: TiledCfg | None = None,
 ):
     """DiT 前向按 latent 分块、Gaussian 混合；VAE 编解码按 vae_tile_size 分块。
 
@@ -59,6 +71,12 @@ def tiled_vae_latent_inference(
     特征提取与采样阶段按瓦片上报 detail（「第 x 块 / 共 y 块」），并按
     TILE_PROGRESS_INTERVAL 节流：一步模型下采样只有一步，若不按瓦片上报，
     整个分块期间进度会从 0.4 直跳 0.85，用户侧表现为长时间无反馈。
+
+    cfg: 多步采样的 CFG 上下文（见 ``TiledCfg``）。多步时**必须**提供，
+    否则每瓦片只做单次前向会静默丢掉 ``cfg_scale``；一步路径传 None。
+    时间窗口内的瓦片把 cond/weak 两份前向合成一个 batch（batch ×2），
+    合成后再做 Gaussian 混合——因为混合权重对两份相同，逐瓦片合成与
+    先混合再合成在线性意义下等价（``vosr/vosr.py:346-348``）。
     """
 
     def _report(stage: str, ratio: float) -> None:
@@ -73,6 +91,14 @@ def tiled_vae_latent_inference(
     AE_FACTOR = 8
     b = lq_tensor.shape[0]
     patch_size = getattr(args, "patch_size", 2)
+    n_steps = max(1, int(args.infer_steps))
+    # 双保险：引擎侧守卫之外，分块循环自身也拒绝「多步却无 CFG」。缺 CFG 时
+    # 每个瓦片只做一次单步前向，cfg_scale 会被静默丢弃（P0-1 的原始缺陷）。
+    if n_steps > 1 and cfg is None:
+        raise ValueError(
+            f"多步采样（steps={n_steps}）在分块路径必须提供 CFG 上下文（TiledCfg）："
+            "否则每个瓦片只做单次前向，cfg_scale 会被丢弃"
+        )
 
     with torch.no_grad():
         lq_latent, latents_mean, latents_std = tiled_vae.encode_dispatch(
@@ -90,13 +116,14 @@ def tiled_vae_latent_inference(
     lt_size = min(lt_size, min(lh, lw))
     lt_overlap = min(lt_overlap, lt_size - 1)
 
-    if lh <= lt_size and lw <= lt_size:
+    # 单瓦片快路径只走一步模型的四参调用（t_nxt 作 r 位）；多步必须进主循环，
+    # 否则会退化成一次前向且丢掉 CFG。
+    if n_steps == 1 and lh <= lt_size and lw <= lt_size:
         with torch.no_grad():
             z_fea = get_venc_features(venc, lq_tensor, args)
             _report("venc", 0.3)
             _empty_cache()
             z = torch.randn_like(lq_latent)
-            n_steps = args.infer_steps
             t_seq = torch.linspace(1.0, 0.0, n_steps + 1, device=device)
             for i in range(n_steps):
                 t_cur, t_nxt = t_seq[i], t_seq[i + 1]
@@ -138,8 +165,10 @@ def tiled_vae_latent_inference(
     _empty_cache()
 
     z = torch.randn_like(lq_latent)
-    n_steps = args.infer_steps
     t_seq = torch.linspace(1.0, 0.0, n_steps + 1, device=device)
+    # 弱条件 latent 只算一次，瓦片内按同一切片取用：与上游
+    # ``self.interpolate(lq, zeros_like(lq), alpha, interp_type)`` 逐元素等价
+    lq_weak = cfg.weak_fn(lq_latent) if cfg is not None else None
 
     with torch.no_grad():
         for step_i in range(n_steps):
@@ -160,7 +189,31 @@ def tiled_vae_latent_inference(
                 for wi in w_pos:
                     he, we = hi + lt_size, wi + lt_size
                     inp = torch.cat([lq_latent[:, :, hi:he, wi:we], z[:, :, hi:he, wi:we]], dim=1)
-                    u_tile = model(inp, t_cur.expand(b), t_nxt.expand(b), tile_venc.get((hi, wi)))
+                    fea = tile_venc.get((hi, wi))
+                    if n_steps > 1:
+                        assert cfg is not None  # 入口已守卫：多步必有 CFG
+                        if cfg.in_window(t_cur):
+                            # cond/weak 双份 batch（前半 cond、后半 weak，顺序同上游）；
+                            # weak 分支的特征按上游取 zeros_like，其余条件与 cond 相同
+                            assert lq_weak is not None
+                            inp_weak = torch.cat(
+                                [lq_weak[:, :, hi:he, wi:we], z[:, :, hi:he, wi:we]], dim=1
+                            )
+                            if fea is None:
+                                fea2 = None
+                            else:
+                                fea2 = [torch.cat([f, torch.zeros_like(f)], dim=0) for f in fea]
+                            u2 = model(
+                                torch.cat([inp, inp_weak], dim=0), t_cur.expand(2 * b), z=fea2
+                            )
+                            u_cond, u_weak = u2.chunk(2)
+                            u_tile = u_weak + cfg.cfg_scale * (u_cond - u_weak)
+                        else:
+                            # 窗口外与上游一致：单份前向，省一半算力
+                            u_tile = model(inp, t_cur.expand(b), z=fea)
+                    else:
+                        # 一步蒸馏模型：四参调用，t_nxt 作 r 位（对应上游 sample_onestep）
+                        u_tile = model(inp, t_cur.expand(b), t_nxt.expand(b), fea)
                     u_acc[:, :, hi:he, wi:we] += u_tile.float() * g_weight
                     w_acc[:, :, hi:he, wi:we] += g_weight
                     done += 1

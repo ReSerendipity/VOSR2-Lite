@@ -27,6 +27,7 @@
     <script nonce="{{ csp_nonce | default('') }}">
     window.__LOCALE__ = "{{ current_locale }}";
     window.__I18N__ = {{ (i18n_flat or {}) | tojson }};
+    window.__APP_LIMITS__ = {{ (app_limits or {}) | tojson }};
     </script>
     <link href="/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">

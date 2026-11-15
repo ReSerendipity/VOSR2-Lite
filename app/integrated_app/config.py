@@ -47,6 +47,8 @@ DEFAULTS: dict[str, Any] = {
         "tile_overlap": 32,
         "default_vae_tile_size": 0,
         "max_output_side": 6144,
+        # 多步采样在分块路径的 CFG 开关；false = 回退旧的 fail-closed
+        "tiled_cfg": True,
         "align_methods": ["wavelet", "adain", "nofix"],
     },
     "history": {"db_path": "data/history.db", "max_records": 10000},
