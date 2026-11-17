@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+* **品牌视觉**：桌面壳换奶油底橙色主题与品牌图标。（`b121cd7`）
+
+### Fixed
+
+* **bootstrap** 缺 torch 时跳过孤儿任务恢复，不再在无 GPU 环境启动失败。（`f918e42`）
+* **依赖更新**：dependabot 补 `/desktop` npm 生态覆盖（Tauri 壳依赖此前不在自动发现范围，见审查 2026-11-18 F-V2）。
+
 ## [0.2.2] - 2026-11-16
 
 ### Added
