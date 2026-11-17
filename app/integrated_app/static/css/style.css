@@ -358,3 +358,17 @@ a:hover { color: var(--sv-accent-hover); }
     width: 34px; height: 34px; flex: none; object-fit: cover;
     border-radius: var(--sv-radius-sm); border: 1px solid var(--sv-border);
 }
+
+/* brand: bootstrap primary buttons follow cream+orange accent */
+.btn-primary,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: var(--sv-accent) !important;
+    border-color: var(--sv-accent) !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+.btn-primary:hover {
+    background-color: var(--sv-accent-hover) !important;
+    border-color: var(--sv-accent-hover) !important;
+}
