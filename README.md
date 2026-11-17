@@ -165,7 +165,7 @@ DINOv2 架构已本地 vendored，无需 clone 上游仓库。
 - [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md)：使用合规声明。
 - [docs/agent-contract.md](docs/agent-contract.md)：自动化 agent 协作契约。
 - [docs/安装包构建与溯源.md](docs/安装包构建与溯源.md)：主分发物 Setup.exe 的构建、SHA256SUMS 与 provenance 强制校验流程（TD-011）。
-- 官方发布：通过 GitHub Release 分发，最新版见 <https://github.com/ReSerendipity/VOSR2-Lite/releases/latest>。发布包只含源代码与清单（`VOSR2-Lite-v<X.Y.Z>.zip` + `SHA256SUMS.txt` + CycloneDX SBOM）；**模型权重不随包分发**，请用 `python scripts/download_model.py` 获取。
+- 官方发布：通过 GitHub Release 分发，最新版见 <https://github.com/ReSerendipity/VOSR2-Lite/releases/latest>。主分发物是单文件安装器 `VOSR2Lite-Setup-v<X.Y.Z>.exe`（数据卷已内嵌，同批发布 `.sha256` 与 `.provenance.json`）；同时提供源码包 `VOSR2-Lite-v<X.Y.Z>.zip` + `SHA256SUMS.txt` + CycloneDX SBOM。**模型权重不随包分发**，请用 `python scripts/download_model.py` 获取。
 
 ### 安全、贡献与支持
 
@@ -331,7 +331,7 @@ The DINOv2 architecture is vendored locally — no upstream clone needed.
 - [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md): usage terms.
 - [docs/agent-contract.md](docs/agent-contract.md): automation-agent collaboration contract.
 - [docs/安装包构建与溯源.md](docs/安装包构建与溯源.md): build and mandatory SHA256SUMS / provenance verification for the Setup.exe distribution artifact (TD-011).
-- Official releases are cut on GitHub Releases: <https://github.com/ReSerendipity/VOSR2-Lite/releases/latest>. Release assets contain source + manifest only (`VOSR2-Lite-v<X.Y.Z>.zip` + `SHA256SUMS.txt` + CycloneDX SBOM); **weights are not bundled** — fetch them with `python scripts/download_model.py`.
+- Official releases are cut on GitHub Releases: <https://github.com/ReSerendipity/VOSR2-Lite/releases/latest>. The primary artifact is the single-file installer `VOSR2Lite-Setup-v<X.Y.Z>.exe` (data volume embedded, published with `.sha256` and `.provenance.json`); a source bundle is also provided (`VOSR2-Lite-v<X.Y.Z>.zip` + `SHA256SUMS.txt` + CycloneDX SBOM). **Weights are not bundled** — fetch them with `python scripts/download_model.py`.
 
 ### Security, contributing, support
 
