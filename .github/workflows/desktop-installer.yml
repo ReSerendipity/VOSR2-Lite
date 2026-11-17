@@ -172,6 +172,11 @@ jobs:
           ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
           $nsisVersion = (& $nsis /VERSION).Trim() -replace '^v', ''
 
+          # provenance 以 tracked 工作树是否干净作为可否发布的硬条件；失败时先看这里列出的文件
+          Write-Host '--- git status (tracked) ---'
+          git status --porcelain --untracked-files=no
+          Write-Host '--- end git status ---'
+
           python -X utf8 scripts/installer/provenance.py write `
             --subject $exe --version $ver --repo . --out-dir $out `
             --tool-version $nsisVersion `
