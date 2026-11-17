@@ -39,8 +39,15 @@ async def recover_orphans(
     history_db: HistoryDB, task_queue: TaskQueue, model_manager: Any
 ) -> dict[str, int]:
     """对账 tasks 表遗留的 pending/processing 状态，返回 {"requeued", "marked_failed"}。"""
-    from app.integrated_app.routes.restore import common
-    from app.integrated_app.routes.restore import upload as upload_mod
+    try:
+        # routes/restore 顶层会导入推理引擎（引擎又顶层 import torch）。瘦包
+        # （bootstrap，无 torch）下不能让孤儿恢复把整个 lifespan 带崩：缺依赖
+        # 时跳过恢复，等用户装好运行环境重启后再补做。
+        from app.integrated_app.routes.restore import common
+        from app.integrated_app.routes.restore import upload as upload_mod
+    except ImportError as exc:
+        logger.warning(f"孤儿任务恢复跳过：推理引擎依赖不可用（{exc}）")
+        return {"requeued": 0, "marked_failed": 0}
 
     orphans = await history_db.get_tasks_by_status(("pending", "processing"))
     if not orphans:
