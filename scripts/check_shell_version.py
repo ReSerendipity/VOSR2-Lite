@@ -26,6 +26,13 @@ import re
 import sys
 from pathlib import Path
 
+# Windows runner 默认控制台编码是 cp1252，直接 print 中文会 UnicodeEncodeError
+# （2026-11-18 CI 实测：desktop-shell 的 Version discipline 步骤必炸）。统一把
+# stdio 重配置为 UTF-8，任何环境（本地 PowerShell / runner）下行为一致。
+if sys.stdout.encoding and sys.stdout.encoding.lower().replace("-", "") != "utf8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parent.parent
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 
