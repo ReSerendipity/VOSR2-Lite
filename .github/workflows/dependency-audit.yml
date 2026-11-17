@@ -51,7 +51,7 @@ jobs:
       #（SHA 与 gitleaks.yml 所钉 checkout@v4 一致；runner 自带 Python 3.12，
       # 因此无需 setup-python——github.com 在整改会话环境不可达，无法实测
       # 更多动作的钉版 SHA，宁可收敛动作面也不留未验证的钉版）
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Audit runtime dependencies (requirements.txt)
         run: |
