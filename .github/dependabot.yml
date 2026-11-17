@@ -31,6 +31,18 @@ updates:
       - dependency-name: "torch"
       - dependency-name: "torchvision"
 
+  # desktop/ Tauri 壳的 npm 依赖（@tauri-apps/cli 等）——与 SeedVR2 的 /desktop 覆盖对齐（2026-11-18 审查 F-V2）
+  - package-ecosystem: npm
+    directory: "/desktop"
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    labels: [dependencies]
+    groups:
+      desktop:
+        patterns: ["*"]
   # GitHub Actions（钉 SHA 的 workflow 也需要知道有新版本）
   - package-ecosystem: github-actions
     directory: "/"
