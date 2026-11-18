@@ -220,6 +220,8 @@
     "action": "Action",
     "installed": "Installed",
     "not_installed": "Not installed",
+    "incomplete": "Incomplete",
+    "repair": "Repair download",
     "default": "Default",
     "model_note": "Weights come from HuggingFace / ModelScope and do not consume this project's bandwidth; downloads are resumable.",
     "need_runtime": "Runtime is not installed yet - install it before downloading model weights.",

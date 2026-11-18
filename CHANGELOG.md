@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-11-18
+
+### Fixed
+
+* **模型就绪判定**：下载管理页不再以目录内任意文件判断“已安装”；改为按 `scripts/download_model.py` 的必需文件清单逐项校验，只有全部存在且非空才算 `present`，半成品返回 `partial` 与 `missing_files`。只有 `args.json` 的目录现在显示“不完整（缺 N 个文件）”，并提供“修复下载”。
+* **模型下载崩溃**：`install_model()` 复用 `_fetch()` 时补齐 `WeightsManifest` 参数，修复把 `source` 字符串当成清单对象导致的 `'str' object has no attribute 'verify'`。
+* **UI**：半成品状态开放删除入口；新增“不完整”“修复下载”中英繁文案。
+
 ## [0.3.0] - 2026-11-18
 
 ### Added

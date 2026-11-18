@@ -160,10 +160,10 @@
                 + '<td>' + A.escapeHtml(m.display_name) + (m.is_default ? ' <span class="badge bg-secondary">' + t('downloads.default', '默认') + '</span>' : '') + '</td>'
                 + '<td>' + (m.min_vram_gb ? m.min_vram_gb + ' GB' : '-') + '</td>'
                 + '<td>' + fmtSize(m.size_bytes) + '</td>'
-                + '<td class="cell-state">' + (m.present ? t('downloads.installed', '已安装') : t('downloads.not_installed', '未安装')) + '</td>'
+                + '<td class="cell-state">' + (m.present ? t('downloads.installed', '已安装') : (m.partial ? t('downloads.incomplete', '不完整') + '（缺 ' + ((m.missing_files || []).length) + ' 个文件）' : t('downloads.not_installed', '未安装'))) + '</td>'
                 + '<td class="cell-action">'
-                + '<button class="btn btn-primary btn-sm btn-model-download" data-target="' + A.escapeHtml(m.name) + '">' + t('common.download', '下载') + '</button> '
-                + '<button class="btn btn-outline-danger btn-sm btn-model-delete" data-target="' + A.escapeHtml(m.name) + '"' + (m.present ? '' : ' disabled') + '>' + t('common.delete', '删除') + '</button>'
+                + '<button class="btn btn-primary btn-sm btn-model-download" data-target="' + A.escapeHtml(m.name) + '">' + (m.partial ? t('downloads.repair', '修复下载') : t('common.download', '下载')) + '</button> '
+                + '<button class="btn btn-outline-danger btn-sm btn-model-delete" data-target="' + A.escapeHtml(m.name) + '"' + ((m.present || m.partial) ? '' : ' disabled') + '>' + t('common.delete', '删除') + '</button>'
                 + '<div class="progress mt-1 model-progress" hidden><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div></div>'
                 + '</td></tr>';
         }

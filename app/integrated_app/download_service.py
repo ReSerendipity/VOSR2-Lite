@@ -397,11 +397,14 @@ def install_model(
             on_progress(stage, ratio, message)
 
     ep = endpoint or module.DEFAULT_ENDPOINT
+    # _fetch 的第三个参数是 WeightsManifest，不是来源字符串；此前把 source
+    # 直接传进去会在首次下载时抛 `'str' object has no attribute 'verify'`。
+    manifest = module.WeightsManifest.load(module.MODEL_ROOT)
     for index, rel in enumerate(files):
         if should_cancel and should_cancel():
             raise InterruptedError("已取消")
         report("download", index / total, f"下载 {os.path.basename(rel)}")
-        module._fetch(rel, ep, source)
+        module._fetch(rel, ep, manifest, source)
     report("done", 1.0, f"{checkpoint} 下载完成")
     return {"checkpoint": checkpoint, "files": files}
 

@@ -6,7 +6,7 @@ Unicode true
 !include "LogicLib.nsh"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "0.3.0"
+  !define APP_VERSION "0.3.1"
 !endif
 
 Name "VOSR2 Lite 桌面版"

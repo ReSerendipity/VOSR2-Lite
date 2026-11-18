@@ -1,8 +1,8 @@
 {
   "name": "VOSR2-Lite",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "channel": "stable",
   "release_date": "2026-11-18",
   "minimum_shell_version": "1.0.0",
-  "changelog": "0.3.0：模型下载 auto 改为魔搭 LULALULALU/VOSR_CKPT 优先、HF 镜像兜底；运行时改用 ReSerendipity/VOSR2Lite-Runtime 公开仓（与 SeedVR2-Lite 共用 runtime-v1，Python 3.12.10 + torch 2.10.0+cu128）；修复下载管理页清单根路径与引导态口径；品牌视觉统一为奶油底橙色图标并同步桌面/任务栏/开始菜单/窗口图标。"
+  "changelog": "0.3.1：修复下载管理页把只有 args.json 的半成品误判为已安装——模型就绪改为按必需文件清单校验，半成品标记「不完整」并提供修复下载；修复模型下载复用 _fetch 时把来源字符串当成 WeightsManifest 导致的 'str' object has no attribute 'verify' 崩溃。"
 }

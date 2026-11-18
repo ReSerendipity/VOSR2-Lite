@@ -220,6 +220,8 @@
     "action": "操作",
     "installed": "已安裝",
     "not_installed": "未安裝",
+    "incomplete": "不完整",
+    "repair": "修復下載",
     "default": "預設",
     "model_note": "權重來自 HuggingFace / ModelScope，不佔用本專案託管頻寬；下載支援斷點續傳。",
     "need_runtime": "尚未安裝執行環境，請先安裝後再下載模型權重。",
