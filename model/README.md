@@ -31,7 +31,7 @@ python scripts/download_model.py --checkpoint VOSR_1.4B_ms
 python scripts/download_model.py --checkpoint VOSR_0.5B_os --source modelscope
 ```
 
-- 来源优先级用 `--source` 控制：`auto`（默认，镜像→官方→魔搭）/ `hf` / `modelscope`
+- 来源优先级用 `--source` 控制：`auto`（默认，魔搭→HF 镜像→HF 官方）/ `hf` / `modelscope`
   （国内实测魔搭比 hf-mirror 快 5–8 倍）；镜像端点可用 `HF_ENDPOINT` 覆盖。
 - 已存在的文件自动跳过，`.part` 支持断点续传。
 

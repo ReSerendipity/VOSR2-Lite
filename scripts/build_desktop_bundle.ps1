@@ -384,6 +384,18 @@ function New-Vosr2AppPayload {
     Copy-Item -LiteralPath $startSrc -Destination (Join-Path $appDir 'start_portable.py') -Force
     $files += 1
 
+    # 下载清单：download_service.load_catalog() 从 PROJECT_ROOT/downloads_catalog.json 读取，
+    # 而源码 app/downloads_catalog.json 会随 app/ 目录落到 app/app/；必须额外复制到 app 根。
+    # 增量包也带它，保证更新后清单随版本同步。
+    $catalogSrc = Join-Path $ProjectRoot 'app\downloads_catalog.json'
+    if (Test-Path -LiteralPath $catalogSrc) {
+        Copy-Item -LiteralPath $catalogSrc -Destination (Join-Path $appDir 'downloads_catalog.json') -Force
+        $files += 1
+        $bytes += [long](Get-Item -LiteralPath $catalogSrc).Length
+    } else {
+        throw "缺少 app\downloads_catalog.json：下载管理页无法确定环境包地址"
+    }
+
     # 版本标识：壳依赖它识别本地版本，缺失会导致更新被静默跳过
     $verSrc = Join-Path $ProjectRoot 'version.json'
     if (-not (Test-Path -LiteralPath $verSrc)) {
@@ -480,7 +492,7 @@ function Assert-Vosr2PayloadLayout {
         [Parameter(Mandatory = $true)][bool]$WithHeavy,
         [string]$RuntimeDestName = 'runtime'
     )
-    $must = @('start_portable.py', 'version.json')
+    $must = @('start_portable.py', 'version.json', 'downloads_catalog.json')
     if ($WithHeavy) {
         $must += @('config.yaml', "$RuntimeDestName\python.exe", 'app\integrated_app\app_server.py')
     }

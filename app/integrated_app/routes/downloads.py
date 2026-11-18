@@ -37,6 +37,7 @@ from app.integrated_app.download_service import (
     _runtime_dir,
     catalog_view,
     get_download_manager,
+    model_file_list,
     uninstall_model,
     uninstall_runtime,
 )
@@ -188,13 +189,33 @@ def scan_models(config: dict) -> list[dict]:
             spec = {}
         path = os.path.join(root, str(key))
         files, size = _dir_stats(path)
+        # 就位判定不能只看目录里有没有文件：下载中断/失败时常见的半成品
+        # 只有 args.json，之前会被误报为“已安装”。以脚本的完整文件清单为准，
+        # 所有必需文件都存在且非空才算 present；有文件但缺项时标记 partial。
+        try:
+            required_files = model_file_list(str(key))
+            missing_files = [
+                rel
+                for rel in required_files
+                if not os.path.isfile(os.path.join(root, rel))
+                or os.path.getsize(os.path.join(root, rel)) <= 0
+            ]
+        except Exception as exc:  # 清单不可读时保守判为未安装，避免假阳性
+            logger.warning(f"读取模型 {key} 文件清单失败: {exc}")
+            required_files = []
+            missing_files = []
+        present = bool(required_files) and not missing_files
+        partial = files > 0 and not present
         out.append(
             {
                 "name": str(key),
                 "display_name": spec.get("name", str(key)),
                 "type": spec.get("type", ""),
                 "min_vram_gb": spec.get("min_vram_gb", 0),
-                "present": files > 0,
+                "present": present,
+                "partial": partial,
+                "required_files": required_files,
+                "missing_files": missing_files,
                 "path": path,
                 "file_count": files,
                 "size_bytes": size,

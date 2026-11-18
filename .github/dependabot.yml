@@ -30,6 +30,11 @@ updates:
       # Dependabot 默认索引拿不到。升级请手工改 requirements.txt 并跑真机冒烟。
       - dependency-name: "torch"
       - dependency-name: "torchvision"
+      # mpmath>=1.4 与 sympy 的上界互斥（sympy 1.14.0 要求 mpmath<1.4，无兼容版），
+      # 整组 PR 会因此锁不可解（2026-11-19 VOSR2#14 关闭留痕）。等 sympy 支持
+      # mpmath>=1.4 后移除本条。
+      - dependency-name: "mpmath"
+        versions: [">=1.4"]
 
   # desktop/ Tauri 壳的 npm 依赖（@tauri-apps/cli 等）——与 SeedVR2 的 /desktop 覆盖对齐（2026-11-18 审查 F-V2）
   - package-ecosystem: npm
