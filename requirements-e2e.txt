@@ -10,4 +10,4 @@
 #
 # 版本钉死：Playwright 的浏览器构建号与 python 包版本绑定，范围版本会让
 # 「已装的浏览器」和「当前包期望的构建」对不上，报 “browser is not found”。
-playwright==1.64.1
+playwright==1.65.0
