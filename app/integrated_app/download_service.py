@@ -10,11 +10,11 @@
 引导解释器（无 torch）上运行，否则用户永远装不上环境。
 
 两条下载链路：
-    1. 环境包：自己托管在 GitHub Release（见 CATALOG）。torch cu128 从 HuggingFace
-       取不便，且国内直连 download.pytorch.org 常失败，故预构建成 zip 分卷分发。
+    1. 环境包：托管在魔搭公开仓 ReSerendipity/VOSR2Lite-Runtime（见 CATALOG，
+       与 SeedVR2-Lite 共用 runtime-v1）。预构建成 zip 分卷分发；
        下载 → 逐卷校验 SHA256 → 合并 → zipfile 解压到 `app/runtime/`。
-    2. 模型：不自己托管（省 ECS 流量与 Release 配额），复用
-       `scripts/download_model.py` 的多源回退（hf-mirror → HF → ModelScope）
+    2. 模型：不自己托管（省流量与 Release 配额），复用
+       `scripts/download_model.py` 的多源回退（魔搭官方公开仓 → HF 镜像 → HF 官方）
        与断点续传（.part + HTTP Range）。
 """
 
@@ -549,8 +549,8 @@ def catalog_view(config: dict) -> dict:
                 "size_bytes": item["size_bytes"],
                 "min_vram_gb": item["min_vram_gb"],
                 "is_default": item["is_default"],
-                # 模型走 HF/ModelScope，不占我们的带宽与配额
-                "source": "huggingface / modelscope",
+                # 模型走魔搭官方公开仓；HF 镜像仅兜底
+                "source": "modelscope（官方公开仓）",
             }
         )
     return {

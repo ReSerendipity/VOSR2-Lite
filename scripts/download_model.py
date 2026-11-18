@@ -195,8 +195,8 @@ def _fetch(rel: str, endpoint: str, manifest: WeightsManifest, source: str = "au
         bases = [MODELSCOPE_BASE, hf_base, hf_official]
     elif source == "hf":
         bases = [hf_base, hf_official, MODELSCOPE_BASE]
-    else:  # auto：镜像 -> 官方 -> 魔搭
-        bases = [hf_base, hf_official, MODELSCOPE_BASE]
+    else:  # auto：魔搭 -> HF 镜像 -> HF 官方（国内优先）
+        bases = [MODELSCOPE_BASE, hf_base, hf_official]
     last_err: Exception | None = None
     for base in bases:
         url = f"{base}/{rel}"
@@ -229,7 +229,7 @@ def main() -> None:
         "--source",
         default="auto",
         choices=("auto", "hf", "modelscope"),
-        help="下载源优先级：auto=镜像→官方→魔搭（默认）；"
+        help="下载源优先级：auto=魔搭→HF 镜像→HF 官方（默认，国内优先）；"
         "hf=只用 HuggingFace；modelscope=优先魔搭"
         "（国内实测快 5-8 倍）",
     )
@@ -268,7 +268,7 @@ def main() -> None:
         return
 
     order = {
-        "auto": f"{endpoint} → huggingface.co → modelscope",
+        "auto": f"modelscope → {endpoint} → huggingface.co",
         "hf": f"{endpoint} → huggingface.co",
         "modelscope": "modelscope → " + endpoint + " → huggingface.co",
     }
@@ -283,3 +283,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

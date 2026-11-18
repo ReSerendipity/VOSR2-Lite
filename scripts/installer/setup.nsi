@@ -6,7 +6,7 @@ Unicode true
 !include "LogicLib.nsh"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "0.2.2"
+  !define APP_VERSION "0.3.0"
 !endif
 
 Name "VOSR2 Lite 桌面版"
@@ -173,3 +173,4 @@ Section "Uninstall"
   nsExec::Exec 'cmd /c ping -n 6 127.0.0.1 >nul & rd /s /q "$INSTDIR"'
   RMDir /r "$TOOLSDIR"
 SectionEnd
+

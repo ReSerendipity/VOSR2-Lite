@@ -105,7 +105,8 @@
             banner.hidden = true;
         } else {
             banner.hidden = false;
-            banner.textContent = rt.present
+            var runtimeReady = !!(rt.present && rt.torch_version);
+            banner.textContent = runtimeReady
                 ? t('downloads.need_model', '运行环境已就位，请下载至少一个模型权重。')
                 : t('downloads.need_runtime', '尚未安装运行环境，请先安装后再下载模型权重。');
         }
@@ -121,8 +122,9 @@
         var rt = (statusData && statusData.runtime) || {};
         var cat = (catalogData && catalogData.runtime) || null;
         var summary = document.getElementById('runtimeSummary');
+        var runtimeReady = !!(rt.present && rt.torch_version);
 
-        if (rt.present) {
+        if (runtimeReady) {
             summary.textContent = t('downloads.runtime_installed', '已安装')
                 + '：Python ' + (rt.python_version || '?')
                 + ' / torch ' + (rt.torch_version || '?')
@@ -139,9 +141,9 @@
         }
 
         var btn = document.getElementById('btnInstallRuntime');
-        btn.textContent = rt.present ? t('downloads.reinstall_runtime', '重新安装环境') : t('downloads.install_runtime', '安装运行环境');
+        btn.textContent = runtimeReady ? t('downloads.reinstall_runtime', '重新安装环境') : t('downloads.install_runtime', '安装运行环境');
         btn.disabled = !cat;
-        document.getElementById('btnUninstallRuntime').disabled = !rt.present;
+        document.getElementById('btnUninstallRuntime').disabled = !runtimeReady;
     }
 
     function renderModels() {
