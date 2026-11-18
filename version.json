@@ -1,8 +1,8 @@
 {
   "name": "VOSR2-Lite",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "channel": "stable",
   "release_date": "2026-11-18",
   "minimum_shell_version": "1.0.0",
-  "changelog": "0.3.1：修复下载管理页把只有 args.json 的半成品误判为已安装——模型就绪改为按必需文件清单校验，半成品标记「不完整」并提供修复下载；修复模型下载复用 _fetch 时把来源字符串当成 WeightsManifest 导致的 'str' object has no attribute 'verify' 崩溃。"
+  "changelog": "0.3.2：补齐 pyproject.toml 版本位并以 0.3.2 重新发版；包含 0.3.1 的下载管理页修复——模型就绪改为按必需文件清单校验，半成品标记「不完整」并提供修复下载；修复模型下载复用 _fetch 时把来源字符串当成 WeightsManifest 导致的崩溃。"
 }
