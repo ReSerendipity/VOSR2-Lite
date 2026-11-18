@@ -1,4 +1,4 @@
-; VOSR2 Lite 桌面版 NSIS 安装器
+﻿; VOSR2 Lite 桌面版 NSIS 安装器
 ; 编译：makensis /DAPP_VERSION=0.2.1 -DSRC_7ZA="C:\Program Files\7-Zip\7z.exe" setup.nsi
 ; 产物：VOSR2Lite-Setup-v<版本>.exe（需与数据分卷 VOSR2Lite-Data.7z.001.. 同目录分发）
 Unicode true
