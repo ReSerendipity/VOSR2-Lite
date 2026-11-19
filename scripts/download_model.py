@@ -58,7 +58,7 @@ from app.integrated_app.weights_manifest import (  # noqa: E402
 
 DEFAULT_REPO = "CSWRY/VOSR"
 DEFAULT_ENDPOINT = os.environ.get("HF_ENDPOINT", "https://hf-mirror.com")
-MODELSCOPE_BASE = "https://modelscope.cn/models/LULALULALU/VOSR_CKPT" "/resolve/master"
+MODELSCOPE_BASE = "https://modelscope.cn/models/LULALULALU/VOSR_CKPT/resolve/master"
 
 # 每个 checkpoint 的文件清单（相对 model/ 的路径）。
 # sha256 校验由 model/WEIGHTS_SHA256.json 承担（见 weights_manifest.py）：
@@ -156,7 +156,7 @@ def _download(url: str, target: str) -> None:
                 if time.time() - last_log > 2:
                     pct = f" {downloaded / total * 100:.0f}%" if total else ""
                     print(
-                        f"\r  {os.path.basename(target)}: " f"{_human(downloaded)}{pct}",
+                        f"\r  {os.path.basename(target)}: {_human(downloaded)}{pct}",
                         end="",
                         flush=True,
                     )
@@ -223,7 +223,7 @@ def main() -> None:
     parser.add_argument(
         "--endpoint",
         default=DEFAULT_ENDPOINT,
-        help="HF 镜像端点（默认 https://hf-mirror.com；" "或用 HF_ENDPOINT 环境变量）",
+        help="HF 镜像端点（默认 https://hf-mirror.com；或用 HF_ENDPOINT 环境变量）",
     )
     parser.add_argument(
         "--source",
@@ -283,4 +283,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
