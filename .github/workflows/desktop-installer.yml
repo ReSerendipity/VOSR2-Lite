@@ -63,7 +63,7 @@ jobs:
           Write-Host "target=$tag version=$ver"
 
       - name: Checkout tag source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.target.outputs.tag }}
           fetch-depth: 1
@@ -78,7 +78,7 @@ jobs:
           Write-Host "version.json OK: $($vj.version)"
 
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -236,7 +236,7 @@ jobs:
 
       - name: Upload workflow artifact (fallback)
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: VOSR2Lite-Setup-installer
           path: |
