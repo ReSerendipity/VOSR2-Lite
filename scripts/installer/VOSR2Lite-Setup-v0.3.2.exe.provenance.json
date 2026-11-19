@@ -1,0 +1,43 @@
+{
+  "schema": "vosr2.lite.installer.provenance/v1",
+  "version": "0.3.2",
+  "built_at": "2026-11-18T14:52:14.193816+00:00",
+  "subject": {
+    "name": "VOSR2Lite-Setup-v0.3.2.exe",
+    "size": 121856811,
+    "sha256": "9e99fd0e5ce5b54d9dd76f157a811d0eb3022579bd53b574158706595b4195de",
+    "signed": false,
+    "source_date_epoch": 1795013463,
+    "source_date_epoch_iso": "2026-11-18T14:51:03+00:00"
+  },
+  "source": {
+    "commit": "ee88629ed113cac8d90127818068d29b80b64c7e",
+    "tree": "e75d6c3736944dce3250f76df9b01d2b001d3509",
+    "dirty": false,
+    "repository": "https://github.com/ReSerendipity/VOSR2-Lite"
+  },
+  "builder": {
+    "tool": "makensis (NSIS)",
+    "tool_version": "3.10",
+    "build_script": "scripts/installer/build_setup.ps1",
+    "platform": "win32"
+  },
+  "inputs": [
+    {
+      "name": "VOSR2Lite-Data.7z.001",
+      "size": 115929536,
+      "sha256": "a897cd3119b14f6717940f6d236917ae20a4de0f412ec4a812d118c11de72446"
+    },
+    {
+      "name": "VOSR2Lite.exe",
+      "size": 17236992,
+      "sha256": "84bf0b2e8dc701abc2d1af82db674de568e293614f07de391332356c4512d5ea"
+    },
+    {
+      "name": "7za.exe",
+      "size": 1334784,
+      "sha256": "574bb90d17732f3cc4145fd4ba12d8f29b9d63400881c0e6fe3110c88b0485de"
+    }
+  ],
+  "notes": "安装包未做代码签名（证书需采购，属主裁决不做）。完整性以 SHA256SUMS.txt 为准，来源以本 provenance 记录为准：复算 subject.sha256 与本文件一致，且 source.commit 与 source.tree 可复现，即证明该 exe 出自该提交的构建。"
+}
