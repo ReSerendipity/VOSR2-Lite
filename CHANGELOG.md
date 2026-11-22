@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-22
+
+### Fixed
+
+* **发布门禁**：补 `tests/test_cli_remote.py`（probe / CSRF / 远程修复主路径与错误分支）与 `tests/test_cli_service.py`（参数构造 / models / system / restore / history），把覆盖率从 67.1% 拉回 70.5%，修复 v0.4.0 的 Release workflow 因覆盖率低于 68% 而失败、draft Release 未创建的问题。
+* **发布版本号**：应用版本 0.3.2 → 0.4.0 → 0.4.1（v0.4.0 因上述门禁失败已推 tag 不可撤回，按治理发补丁版）；壳版本 1.0.1 不变（本次未改壳代码）。
+* GOTCHAS #49：提交前必须跑 `pytest --cov`，不能只跑 `pytest -q`。
+
 ## [0.4.0] - 2026-11-22
 
 ### Added
