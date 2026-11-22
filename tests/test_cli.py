@@ -57,6 +57,21 @@ class TestResultContract:
         assert rc == EXIT_OK
         assert json.loads(out)["data"]["x"] == 2
 
+    def test_begin_json_mode_isolates_third_party_print(self, capsys):
+        """回归：vendored vosr/tiled_vae.py 直接 print 曾污染 JSON stdout。"""
+        from app.integrated_app.cli_output import begin_json_mode, end_json_mode
+
+        begin_json_mode()
+        try:
+            print("[Tiled VAE encode]: should not pollute stdout")
+            emit(Result.success({"ok": 1}, command="t"), as_json=True)
+        finally:
+            end_json_mode()
+        captured = capsys.readouterr()
+        assert "[Tiled VAE encode]" not in captured.out
+        assert json.loads(captured.out.strip())["data"]["ok"] == 1
+        assert "[Tiled VAE encode]" in captured.err
+
 
 class TestParser:
     def test_commands_registered(self):

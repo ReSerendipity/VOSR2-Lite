@@ -67,19 +67,41 @@ class Result:
         return _ERROR_CODE_EXIT.get(self.error_code, EXIT_BUSINESS_ERROR)
 
 
-def begin_json_mode() -> None:
-    """隔离 import 期的 stdout 污染：把 stdout 重定向到 stderr。
+_ORIGINAL_STDOUT = None
 
-    须在导入有 print 副作用的依赖之前调用。本项目的 loguru 默认写 stderr，
-    但第三方（如 vendored vosr 的上游脚本）可能直接 print，故前置隔离。
+
+def begin_json_mode():
+    """隔离 import/推理期的 stdout 污染：把 stdout 重定向到 stderr。
+
+    须在导入有 print 副作用的依赖之前调用。本项目 vendored 的
+    ``vosr/tiled_vae.py`` 会直接 print 分块信息（实测污染 JSON 输出）。
+    返回原始 stdout 句柄，调用方用 ``end_json_mode`` 恢复（进程退出可省略）。
     """
-    sys.stdout = sys.stderr
+    global _ORIGINAL_STDOUT
+    if _ORIGINAL_STDOUT is None:
+        _ORIGINAL_STDOUT = sys.stdout
+        sys.stdout = sys.stderr
+    return _ORIGINAL_STDOUT
+
+
+def end_json_mode() -> None:
+    """恢复 begin_json_mode 之前的 stdout（供进程内多次调用/测试使用）。"""
+    global _ORIGINAL_STDOUT
+    if _ORIGINAL_STDOUT is not None:
+        sys.stdout = _ORIGINAL_STDOUT
+        _ORIGINAL_STDOUT = None
+
+
+def _result_stream():
+    """承载结果数据的流（JSON 模式用原始 stdout）。"""
+    return _ORIGINAL_STDOUT if _ORIGINAL_STDOUT is not None else sys.stdout
 
 
 def emit(result: Result, as_json: bool, human_formatter=None) -> int:
     """渲染结果并返回进程退出码。"""
     if as_json:
-        print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=False))
+        payload = json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=False)
+        print(payload, file=_result_stream())
     elif human_formatter is not None:
         human_formatter(result)
     elif result.ok:

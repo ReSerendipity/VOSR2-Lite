@@ -32,7 +32,9 @@ if _PROJECT_ROOT not in sys.path:
 from app.integrated_app.cli_output import (  # noqa: E402
     EXIT_USAGE_ERROR,
     Result,
+    begin_json_mode,
     emit,
+    end_json_mode,
 )
 
 
@@ -163,12 +165,23 @@ def _run_restore(args: argparse.Namespace, as_json: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """入口：管理 JSON 模式的 stdout 隔离生命周期，委托给 _main_impl。"""
     raw = list(sys.argv[1:] if argv is None else argv)
-    # --json 任意位置生效：预提取后再交给 argparse
     as_json = "--json" in raw
     if as_json:
         raw = [a for a in raw if a != "--json"]
+        # 必须在导入 cli_service / 引擎之前：vendored vosr/tiled_vae.py 直接 print，
+        # 否则分块信息会混进 JSON 的 stdout（实测本轮超分踩到）。
+        begin_json_mode()
+    try:
+        return _main_impl(raw, as_json)
+    finally:
+        if as_json:
+            end_json_mode()
 
+
+def _main_impl(raw: list[str], as_json: bool) -> int:
+    # --json 已由 main 预提取
     parser = build_parser()
     try:
         args = parser.parse_args(raw)
