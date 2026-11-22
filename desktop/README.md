@@ -161,6 +161,15 @@ torch 运行时约需 8 个 1900MB 分卷。
    否则安装器覆盖运行中的 exe 会失败；这与旧换载路线的 `os error 32` 是同一类句柄问题。
 6. 壳日志 `logs/vosr2lite-shell.log` 必须有滚动上限（当前 5 MB × 3 份）。
 
+## CLI 启动器（vosr2.cmd）
+
+安装器把 `scripts/installer/vosr2.cmd` 复制到 `<InstallDir>\vosr2.cmd`，用内置引导解释器
+（`app\bootstrap\python.exe`）跑 `app\app\integrated_app\cli.py`。**刻意不注册 PATH**：
+CLI 面向开发者 / AI agent，用全路径调用即可（如 `%LOCALAPPDATA%\Programs\VOSR2Lite\vosr2.cmd --help`）；
+普通用户主流程是 Web UI，不必感知命令行。引导解释器不含 torch，首次须先在程序内「下载管理」页装好运行环境。
+
+CLI 命令与输出契约见 [`docs/用户手册.md`](../docs/用户手册.md) §10。
+
 ## 能力边界（VOSR2 首版）
 
 `desktop/src/desktop-bridge.js` 提供：IPC、自绘标题栏（壳为无边框窗口）、更新弹窗与进度、

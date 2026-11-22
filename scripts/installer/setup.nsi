@@ -117,6 +117,8 @@ Section "VOSR2 Lite 桌面版" SEC_APP
   ; 数据卷是旧基线，此处用安装器内嵌文件覆盖为最新壳/版本元数据（壳更新无需重打数据卷）
   SetOutPath "$INSTDIR"
   File "VOSR2Lite.exe"
+  ; CLI 启动器（开发者/AI agent 用；刻意不注册 PATH，全路径调用即可）
+  File "vosr2.cmd"
   SetOutPath "$INSTDIR\app"
   File "..\..\version.json"
 
