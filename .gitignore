@@ -89,5 +89,8 @@ desktop/tauri.key*
 
 # ── 安装器打包产物（本地构建，不入库）────────────────────────────────────────
 # VOSR2Lite.exe 是构建时从 target/release 拷进来的壳副本，Setup exe 是 makensis 产物；
-# 两者都由 scripts/installer/setup.nsi 现场生成，仓库只保留脚本。
+# Data.7z.001 是 build_desktop_bundle.ps1 现场组装的数据卷（116MB，走 LFS 但远端对象
+# 从未上传成功，2026-11-22 致 v0.4.0/v0.4.1 的 git archive 因 LFS 404 失败）。
+# 三者都是本地构建产物，仓库只保留脚本；CI 的 desktop-installer.yml 自行重建。
 scripts/installer/*.exe
+scripts/installer/*.7z*

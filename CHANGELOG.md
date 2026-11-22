@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-11-22
+
+### Fixed
+
+* **Release workflow**：`scripts/installer/VOSR2Lite-Data.7z.001`（116MB 构建产物）此前误入 Git LFS 但远端对象从未上传成功，导致 v0.4.0/v0.4.1 的 `git archive` 报 LFS smudge 404、Release 无法创建。用 `git rm --cached` 从索引移除（保留本地文件）并加入 `.gitignore`；CI 本就自行重建数据卷。应用版本 0.4.1 → 0.4.2；壳版本 1.0.1 不变。GOTCHAS #50。
+
 ## [0.4.1] - 2026-11-22
 
 ### Fixed
