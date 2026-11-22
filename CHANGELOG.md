@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-22
+
+### Added
+
+* **统一 CLI**：`python -m app.integrated_app.cli` 提供 `restore`（单图/批量，引擎只加载一次）、`models status`、`system status`、`history list/show` 四类命令；Result 信封 + Human/JSON 双输出 + 语义退出码（0/1/2/3），`--json` 任意位置生效，供 AI agent 自动化调用。直调统一走 `ModelManager`（继承权重 sha256 校验与设备配置）；`--server-url` 显式指定时可复用常驻服务。桌面包随附 `vosr2.cmd` 启动器（不注册 PATH）。
+* **CLI 契约测试**：`tests/test_cli.py` 覆盖信封/JSON/退出码/命令分派与 stdout 污染回归，CI 无 GPU 可跑。
+
+### Changed
+
+* **更新路线收敛为单一完整安装包**：官网下载与「检查更新」拿同一个 `VOSR2Lite-Setup-v<版本>.exe`；更新器改为下载 → SHA256 校验 → `/S` 启动 NSIS 覆盖安装 → 用户手动重开。删除代码增量产线（`app-v*.zip` + 原子换载/回滚/PRESERVE 整套）、官方 `tauri-plugin-updater` 死配置（pubkey/endpoint/插件注册）与 tracked 死公钥 `tauri.key.pub`。
+* **安装器保留用户配置**：`setup.nsi` 覆盖解压前备份 `config.yaml`、解压后还原，避免 CSRF/Basic Auth 等安全开关被数据卷默认配置冲掉（TTS 样板没有这一步）。
+* **壳版本 1.0.0 → 1.0.1**（三处镜像同步），应用版本 0.3.2 → 0.4.0；`minimum_shell_version` 保持 1.0.0（老壳仍可覆盖安装）。
+* 文档同步：根 README 中英段、`desktop/README.md` 更新契约与 CLI 启动器段、`docs/用户手册.md` §10、ADR-0005。
+
+### Fixed
+
+* **CLI stdout 污染**：vendored `vosr/tiled_vae.py` 直接 print 分块信息混进 `--json` 输出导致 `json.loads` 失败；`begin_json_mode()` 前置隔离 stdout 到 stderr，`emit()` 写回原始流，并加回归测试钉住。
+* **DINO 权重下载源**：`download_model.py --source auto`（魔搭优先）拿到的 DINOv2-L 权重与清单 sha256 不符（1.1GB vs 1.217GB）且失败后不换源；实测 hf-mirror 版本与清单一致，改用 `--source hf` 下载校验通过。已写入 GOTCHAS #46。
+
 ## [0.3.2] - 2026-11-18
 
 ### Fixed

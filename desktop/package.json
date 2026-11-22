@@ -1,6 +1,6 @@
 {
   "name": "vosr2lite-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "VOSR2 Lite 桌面应用壳",
   "scripts": {

@@ -1,6 +1,6 @@
 [package]
 name = "vosr2lite-desktop"
-version = "1.0.0"
+version = "1.0.1"
 description = "VOSR2 Lite 桌面应用壳（Tauri v2）"
 authors = ["ReSerendipity"]
 edition = "2021"

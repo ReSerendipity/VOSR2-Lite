@@ -1,8 +1,8 @@
 {
   "name": "VOSR2-Lite",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "channel": "stable",
-  "release_date": "2026-11-18",
+  "release_date": "2026-11-22",
   "minimum_shell_version": "1.0.0",
-  "changelog": "0.3.2：补齐 pyproject.toml 版本位并以 0.3.2 重新发版；包含 0.3.1 的下载管理页修复——模型就绪改为按必需文件清单校验，半成品标记「不完整」并提供修复下载；修复模型下载复用 _fetch 时把来源字符串当成 WeightsManifest 导致的崩溃。"
+  "changelog": "0.4.0：更新路线收敛为单一完整安装包（官网与检查更新同拿 Setup.exe，SHA256 校验后 /S 覆盖安装，用户数据全保留）；新增统一 CLI（restore/models/system/history，Result 信封 + JSON 输出 + 语义退出码，可 --server-url 复用常驻服务）；修复 vendored vosr 的 print 污染 CLI JSON stdout。"
 }
