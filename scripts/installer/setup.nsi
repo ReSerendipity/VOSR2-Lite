@@ -35,6 +35,7 @@ BrandingText "VOSR2 Lite"
 
 Var StartMenuFolder
 Var TOOLSDIR
+Var HAD_USER_CONFIG
 
 ; ---------- 终止运行中的 VOSR2 Lite（壳 + 其 Python 子进程）----------
 !macro KillRunning
@@ -78,6 +79,16 @@ Section "VOSR2 Lite 桌面版" SEC_APP
 
   !insertmacro KillRunning
 
+  ; 覆盖安装保护：数据卷自带默认 config.yaml，7za 解压会覆盖用户改过的版本。
+  ; config.yaml 承载 CSRF / Basic Auth / 限流等安全开关，重置会让老用户配置失效。
+  ; 解压前若旧配置存在则备份，解压后还原（全新安装无旧文件，直接用数据卷默认值）。
+  StrCpy $HAD_USER_CONFIG "0"
+  ${If} ${FileExists} "$INSTDIR\app\config.yaml"
+    CopyFiles /SILENT "$INSTDIR\app\config.yaml" "$TOOLSDIR\config.yaml.user"
+    StrCpy $HAD_USER_CONFIG "1"
+    DetailPrint "已备份用户配置 config.yaml（覆盖安装后还原）"
+  ${EndIf}
+
   ; 校验数据分卷存在（数据卷含 runtime/ + model/ + app/ 基线）
   ${IfNot} ${FileExists} "$TOOLSDIR\${DATA_PREFIX}.001"
     MessageBox MB_ICONSTOP "缺少数据分卷 ${DATA_PREFIX}.001。$\n请确认 setup.exe 与全部数据分卷（.001/.002/...）位于同一目录。"
@@ -94,6 +105,13 @@ Section "VOSR2 Lite 桌面版" SEC_APP
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "数据解压失败（7z 错误码 $0）。$\n请检查：1) 磁盘空间是否充足；2) 数据分卷是否完整（SHA256 校验见随附 SHA256SUMS）。"
     Abort
+  ${EndIf}
+
+  ; 覆盖安装保护：还原用户配置（备份仅在解压前存在旧 config.yaml 时产生）
+  ${If} $HAD_USER_CONFIG == "1"
+    CopyFiles /SILENT "$TOOLSDIR\config.yaml.user" "$INSTDIR\app\config.yaml"
+    Delete "$TOOLSDIR\config.yaml.user"
+    DetailPrint "已还原用户配置 config.yaml"
   ${EndIf}
 
   ; 数据卷是旧基线，此处用安装器内嵌文件覆盖为最新壳/版本元数据（壳更新无需重打数据卷）

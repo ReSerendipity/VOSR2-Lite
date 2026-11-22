@@ -196,6 +196,16 @@
       }
     });
     listen("update-progress", function (p) { renderProgress(p); });
+    // 单一路线：下载完整安装包后启动 NSIS /S，应用会被安装器关闭。
+    // 安装器接管后壳不再存活，不会有 update-done；提示用户安装完手动重开。
+    listen("update-installing", function (r) {
+      ensureDialog();
+      var body = document.getElementById("vdu-body");
+      var actions = document.getElementById("vdu-actions");
+      if (body) body.innerHTML = '<div style="color:#27ae60;font-weight:600;font-size:16px;text-align:center;padding:20px 0">✓ ' + escapeHtml((r && r.message) || "安装程序即将启动，应用会关闭；安装完成后请重新启动 VOSR2 Lite。") + "</div>";
+      if (actions) actions.innerHTML = "";
+      if (dlgEl) dlgEl.style.display = "flex";
+    });
     listen("update-done", function (r) {
       notifyShell("VOSR2 Lite 更新完成", (r && r.message) || "应用已更新到最新版本");
       ensureDialog();

@@ -4,8 +4,6 @@
 #
 # 产物（默认输出到 dist\desktop-release\）：
 #   VOSR2Lite-Data.7z.001..NNN  数据卷：app/（应用代码 + 便携 Python 运行时 + 模型）
-#   app-v<ver>.zip              增量包：仅应用代码（壳内更新器下载，不含运行时/模型）
-#   app-v<ver>.zip.sha256       增量包校验和（壳内更新器用它校验）
 #   SHA256SUMS.txt              全部产物清单
 #   manifest.json               产物元信息（分卷清单 / 体积 / 哈希）
 #   upload-list.txt             待上传文件列表
@@ -16,16 +14,15 @@
 #     start_portable.py   壳启动的入口（scripts/start_portable.py 复制而来）
 #     version.json        本地版本标识，缺失会导致更新被静默跳过
 #     app\ vosr\          应用代码包
-#     config.yaml         保留用户修改（PRESERVE_ROOT_FILES），增量包不含它
+#     config.yaml         首次安装默认值；覆盖安装由 setup.nsi 备份还原用户修改
 #     runtime\python.exe  便携解释器（WinPython 的 python-3.12.10.amd64 内容）
 #     model\              权重（config.yaml 的 model.pretrained_dir 相对 PROJECT_ROOT 解析）
-#     data\ outputs\ logs\ 运行态目录（增量更新时整体保留）
+#     data\ outputs\ logs\ 运行态目录（覆盖安装时保留：数据卷不含这些目录）
 #
 # 用法：
 #   .\scripts\build_desktop_bundle.ps1                       # 瘦包（默认）：壳 + 代码 + 引导解释器
 #   .\scripts\build_desktop_bundle.ps1 -Mode runtime         # 环境包：torch cu128 wheels + 下载清单
 #   .\scripts\build_desktop_bundle.ps1 -Mode all             # 两者都建（发版用）
-#   .\scripts\build_desktop_bundle.ps1 -SkipIncremental      # 不单独打增量包
 #
 # 瘦包不含量化权重与 torch：这两样由程序内「下载管理」页按需安装
 # （页面 = /downloads，执行层 = app/integrated_app/download_service.py）。
@@ -69,7 +66,6 @@ param(
     [switch]$SkipAutoPrepare,
     [switch]$SkipDeps,
     [switch]$SkipDataVolume,
-    [switch]$SkipIncremental,
     [switch]$KeepStaging,
     [switch]$KeepArchive,
     [switch]$SkipSizeGate
@@ -90,7 +86,7 @@ $RuntimeZipName = 'VOSR2Lite-Runtime-cu128.zip'
 $RuntimeDefaultTag = 'runtime-v1'
 $CatalogFileName = 'downloads_catalog.json'
 
-# 应用代码：随增量包与数据卷一起分发
+# 应用代码：随数据卷一起分发
 $CodeIncludeDirs = @('app', 'vosr')
 $CodeIncludeFiles = @('requirements.txt', 'README.md', 'LICENSE', 'NOTICE', 'CHANGELOG.md')
 # 打包时排除：缓存 / 虚拟环境 / 测试 / 运行态数据 / 构建产物 / 私钥
@@ -102,10 +98,6 @@ $CodeExcludePatterns = @(
     'desktop\*', 'scripts\*', 'docs\*', 'model\*', 'runtime\*',
     '.env', '.env.*', 'tauri.key', '*.pem'
 )
-# 增量包额外排除：这些由旧安装保留（updater.rs 的 PRESERVE_ROOT_FILES / PRESERVE_TOP_DIRS），
-# 且体积大（运行时 / 模型）——用户修改优先于新版默认，故不随增量包分发。
-$IncrementalExcludePatterns = $CodeExcludePatterns + @('config.yaml', 'runtime\*', 'model\*', 'version.json.bak')
-
 # ------------------------------------------------------------ 版本解析 ----
 function Get-Vosr2ProjectVersion {
     param([Parameter(Mandatory = $true)][string]$ProjectRoot)
@@ -344,8 +336,8 @@ function Write-Vosr2Catalog {
 # ------------------------------------------------------------ 载荷组装 ----
 function New-Vosr2AppPayload {
     <#
-        组装 <payload>\app\。$WithHeavy = $true 时一并放入 runtime/ 与 model/（数据卷）；
-        $false 时只放代码（增量包）。
+        组装 <payload>\app\。$WithHeavy = $true 时一并放入引导解释器与配置（数据卷）；
+        单一完整包路线下本函数只被数据卷分支以 $true 调用。
     #>
     param(
         [Parameter(Mandatory = $true)][string]$PayloadDir,
@@ -362,7 +354,7 @@ function New-Vosr2AppPayload {
     )
     $appDir = Join-Path $PayloadDir $PayloadAppName
     New-Item -ItemType Directory -Path $appDir -Force | Out-Null
-    $exclude = if ($WithHeavy) { $CodeExcludePatterns } else { $IncrementalExcludePatterns }
+    $exclude = $CodeExcludePatterns
     $files = 0
     $bytes = [long]0
 
@@ -386,7 +378,7 @@ function New-Vosr2AppPayload {
 
     # 下载清单：download_service.load_catalog() 从 PROJECT_ROOT/downloads_catalog.json 读取，
     # 而源码 app/downloads_catalog.json 会随 app/ 目录落到 app/app/；必须额外复制到 app 根。
-    # 增量包也带它，保证更新后清单随版本同步。
+    # 随数据卷分发，保证安装后下载页能确定环境地址。
     $catalogSrc = Join-Path $ProjectRoot 'app\downloads_catalog.json'
     if (Test-Path -LiteralPath $catalogSrc) {
         Copy-Item -LiteralPath $catalogSrc -Destination (Join-Path $appDir 'downloads_catalog.json') -Force
@@ -404,7 +396,7 @@ function New-Vosr2AppPayload {
     Copy-Item -LiteralPath $verSrc -Destination (Join-Path $appDir 'version.json') -Force
     $files += 1
 
-    # 配置文件：数据卷需要（首次安装的默认值）；增量包刻意不含（保留用户修改）
+    # 配置文件：数据卷需要（首次安装的默认值）；覆盖安装时 setup.nsi 会还原用户修改
     if ($WithHeavy) {
         Copy-Item -LiteralPath (Join-Path $ProjectRoot 'config.yaml') -Destination (Join-Path $appDir 'config.yaml') -Force
         $files += 1
@@ -592,33 +584,9 @@ if ((Split-Path -Qualifier $StagingDir) -ne (Split-Path -Qualifier $OutDir)) {
 $upload = @()
 $volumeObjs = @()
 
-# ---------------------------------------------------------- 增量包 ----
-if (-not $SkipIncremental) {
-    Write-Host "`n[增量包] 仅应用代码（不含运行时 / 模型 / 用户配置）" -ForegroundColor Yellow
-    $incPayload = Join-Path $StagingDir 'incremental-payload'
-    Remove-Vosr2TreeFast -Path $incPayload
-    New-Item -ItemType Directory -Path $incPayload -Force | Out-Null
-    $built = New-Vosr2AppPayload -PayloadDir $incPayload -ProjectRoot $Root -Ver $Version -WithHeavy $false
-    Assert-Vosr2PayloadLayout -AppDir $built.AppDir -WithHeavy $false
-    Assert-Vosr2NoForbiddenPayload -Path $incPayload
-    Write-Host ("  载荷：{0} 文件 / {1}" -f $built.Files, (Format-Vosr2Size $built.Bytes))
-
-    $zipBase = Join-Path $OutDir "app-v$Version"
-    # 关键：SourceDir 必须是 app 目录本身而非其父目录——updater.rs 的 extract_zip_with
-    # 把 zip 直接解到 app.new/，条目根就是 app/ 的内容（start_portable.py、app\、vosr\…）。
-    # 若多包一层 app\，换载后会变成 app\app\app\integrated_app，壳找不到启动脚本。
-    $arc = New-Vosr2Archive -SourceDir $built.AppDir -OutFile $zipBase -Format zip -Level 9
-    $zipPath = $arc.Path
-    $shaPath = "$zipPath.sha256"
-    $enc = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($shaPath, ((Get-Vosr2FileSha256 -Path $zipPath) + "  " + (Split-Path -Leaf $zipPath)), $enc)
-    Write-Host ("  增量包：{0}（{1}）" -f (Split-Path -Leaf $zipPath), (Format-Vosr2Size $arc.Bytes))
-    $upload += $zipPath
-    $upload += $shaPath
-    Remove-Vosr2TreeFast -Path $incPayload
-}
-
 # ---------------------------------------------------------- 数据卷 ----
+# 更新路线已收敛为单一完整安装包：官网下载与「检查更新」都拿 VOSR2Lite-Setup-v<版本>.exe，
+# 不再产出 app-v<版本>.zip 代码增量包（见 desktop/README.md「更新契约」与 ADR-0005）。
 if ($buildSlim) {
     Write-Host "`n[瘦包] 应用代码 + 引导解释器（不含模型）" -ForegroundColor Yellow
     $dataPayload = Join-Path $StagingDir 'data-payload'
@@ -731,7 +699,7 @@ $manifest = [ordered]@{
             [ordered]@{ index = $v.Index; file = $v.Name; bytes = [long]$v.Bytes; sha256 = $v.Sha256 }
         }
     )
-    incremental_package = if ($SkipIncremental) { $null } else { "app-v$Version.zip" }
+    update_package      = "VOSR2Lite-Setup-v$Version.exe"
 }
 Write-Vosr2Json -Object $manifest -Path (Join-Path $OutDir 'manifest.json')
 

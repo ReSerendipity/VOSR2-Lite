@@ -80,7 +80,7 @@ def _catalog_path() -> str:
 
 # ------------------------------------------------------------ 组件清单 ----
 def load_catalog() -> dict:
-    """读取内置清单 `app/downloads_catalog.json`（随增量包更新，离线也可展示）。"""
+    """读取内置清单 `app/downloads_catalog.json`（随完整安装包更新，离线也可展示）。"""
     path = _catalog_path()
     if os.path.isfile(path):
         try:

@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """系统电源路由：桌面壳优雅关闭端点。
 
-供 Tauri v2 桌面壳（``desktop/src-tauri``）在退出/更新换载前调用，替代
+供 Tauri v2 桌面壳（``desktop/src-tauri``）在退出/覆盖安装前调用，替代
 ``taskkill /F`` 硬杀——硬杀会留下 torch/uvicorn 子进程持有 app/ 目录句柄，
-导致增量更新 rename 失败（家族仓 GOTCHAS 同型问题）。本端点只置
+可能导致安装器覆盖运行中的文件失败（家族仓 GOTCHAS 同型问题）。本端点只置
 ``uvicorn.Server.should_exit``，由 uvicorn 正常收尾并触发 lifespan 清理
 （停任务队列、关历史库、取消空闲卸载看门狗）。
 

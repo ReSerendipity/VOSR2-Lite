@@ -36,7 +36,7 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 - **历史记录**：SQLite 持久化任务与缩略图，可分页回看、对比、下载、删除。
 - **效率细节**：参数预设本地保存、Ctrl+V 粘贴上传、输出尺寸与耗时预估、下载可选 PNG / JPEG / WebP、失败卡一键重试、快捷键（0/1/±/M/C）。
 - **多语言界面**：简体中文 / 繁體中文 / English；主题跟随系统，可手动切换。
-- **桌面版分发**：Tauri v2 壳（原生窗口 / 托盘 / 通知 / 单实例 / 增量更新）；壳与数据分卷解耦，换壳不重下模型。
+- **桌面版分发**：Tauri v2 壳（原生窗口 / 托盘 / 通知 / 单实例 / 单一完整包更新）；覆盖安装保留历史与模型，无需卸载重装。
 - **安全基线**：仅绑 `127.0.0.1`、CSP / 安全响应头、上传魔数校验、限流、路径白名单；可选 HTTP Basic Auth（含失败封禁）与 CSRF 双提交防护，默认关闭、`config.yaml` 开关控制。
 
 ### 展示
@@ -74,9 +74,10 @@ VOSR2-Lite 是基于 [VOSR2](https://github.com/cswry/VOSR)（CVPR 2026）开源
 
 到 [Releases](https://github.com/ReSerendipity/VOSR2-Lite/releases) 下载
 `VOSR2Lite-Setup-v<版本>.exe`（单文件安装包，数据卷已内嵌，无需另外下载任何分卷），双击安装即可。
-同批发布 `SHA256SUMS.txt` 与 `*.provenance.json`（构建溯源），供校验；应用代码以 `app-v<版本>.zip`
-增量更新（约 1 MB），换壳不必重下数 GB 模型。构建与校验流程见
-[`docs/安装包构建与溯源.md`](docs/安装包构建与溯源.md)。
+同批发布 `*.exe.sha256` 与 `*.provenance.json`（构建溯源），供校验。
+「检查更新」下载的是**同一个完整安装包**，SHA256 校验后静默覆盖安装；用户数据（历史、
+权重、已装 torch 环境、个人配置）在覆盖安装中全部保留，装完手动重开即可用上新功能。
+构建与校验流程见 [`docs/安装包构建与溯源.md`](docs/安装包构建与溯源.md)。
 
 壳只负责窗口/托盘/进程托管，业务仍是同一个 FastAPI 后端——桌面端与浏览器端共用一套代码。
 自行打包见 [`desktop/README.md`](desktop/README.md)；下面的源码流程适用于开发与 Linux 环境。
@@ -240,9 +241,10 @@ interpreter (no torch) and an in-app download entry for the runtime and weights.
 Download `VOSR2Lite-Setup-v<version>.exe` (a single-file installer with the data volume embedded —
 no separate `.7z.001` volumes to fetch) from
 [Releases](https://github.com/ReSerendipity/VOSR2-Lite/releases), then run it. The same release
-carries `SHA256SUMS.txt` and `*.provenance.json` for verification. App code ships as an incremental
-`app-v<version>.zip` (~1 MB), so shell updates never re-download multi-GB weights. See
-[`docs/安装包构建与溯源.md`](docs/安装包构建与溯源.md) for the build and verification flow.
+carries `*.exe.sha256` and `*.provenance.json` for verification. "Check for updates" downloads the
+same full installer: after SHA256 verification it runs a silent overwrite install that preserves
+your history, weights, installed torch runtime and personal config; restart the app when prompted.
+See [`docs/安装包构建与溯源.md`](docs/安装包构建与溯源.md) for the build and verification flow.
 
 The shell only owns the window/tray/process supervision; business logic stays in the same FastAPI
 backend, so desktop and browser builds share one codebase. See
