@@ -164,9 +164,10 @@ torch 运行时约需 8 个 1900MB 分卷。
 ## CLI 启动器（vosr2.cmd）
 
 安装器把 `scripts/installer/vosr2.cmd` 复制到 `<InstallDir>\vosr2.cmd`，用内置引导解释器
-（`app\bootstrap\python.exe`）跑 `app\app\integrated_app\cli.py`。**刻意不注册 PATH**：
-CLI 面向开发者 / AI agent，用全路径调用即可（如 `%LOCALAPPDATA%\Programs\VOSR2Lite\vosr2.cmd --help`）；
-普通用户主流程是 Web UI，不必感知命令行。引导解释器不含 torch，首次须先在程序内「下载管理」页装好运行环境。
+（`app\bootstrap\python.exe`）跑 `app\app\integrated_app\cli.py`，并把 `<InstallDir>` 加入**当前用户 PATH**
+（`setup.nsi` 的 `AddToUserPath`，幂等；卸载时 `un.RemoveFromUserPath` 精确移除并广播环境变量变更），
+新开终端可直接敲 `vosr2 --help`；开始菜单另有「VOSR2 Lite CLI」快捷方式。
+引导解释器不含 torch，首次须先在程序内「下载管理」页装好运行环境。
 
 CLI 命令与输出契约见 [`docs/用户手册.md`](../docs/用户手册.md) §10。
 

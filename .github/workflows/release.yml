@@ -148,13 +148,15 @@ jobs:
 
           ### 桌面版 CLI
 
-          安装包附带命令行入口 \`vosr2.cmd\`（位于安装目录，**未注册 PATH**，用全路径调用）：
+          安装器把安装目录加入**当前用户 PATH**（幂等，卸载时精确移除），新开终端即可直接敲命令：
 
           \`\`\`bat
-          "%LOCALAPPDATA%\\Programs\\VOSR2Lite\\vosr2.cmd" --help
-          "%LOCALAPPDATA%\\Programs\\VOSR2Lite\\vosr2.cmd" models status --json
-          "%LOCALAPPDATA%\\Programs\\VOSR2Lite\\vosr2.cmd" restore -i photo.jpg -o outputs -u 4
+          vosr2 --help
+          vosr2 models status --json
+          vosr2 restore -i photo.jpg -o outputs -u 4
           \`\`\`
+
+          开始菜单也有「VOSR2 Lite CLI」快捷方式（打开命令行并运行 \`vosr2 --help\`）。
 
           命令族：\`restore\`（单图/批量）、\`models status\`、\`system status\`、\`history list/show\`。
           \`--json\` 输出稳定 JSON 信封，退出码 0/1/2/3，供脚本与 AI agent 自动化调用。

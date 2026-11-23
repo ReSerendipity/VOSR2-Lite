@@ -12,7 +12,7 @@ ${Using:StrFunc} UnStrStr
 ${Using:StrFunc} UnStrRep
 
 !ifndef APP_VERSION
-  !define APP_VERSION "0.4.2"
+  !define APP_VERSION "0.4.3"
 !endif
 
 Name "VOSR2 Lite 桌面版"

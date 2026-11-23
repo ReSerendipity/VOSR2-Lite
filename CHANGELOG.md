@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-11-23
+
+### Changed
+
+* **桌面 CLI 全局命令**：安装器把安装目录加入当前用户 PATH（`AddToUserPath`，幂等 + 广播 WM_WININICHANGE），新开终端可直接敲 `vosr2 --help` / `vosr2 restore ...`；卸载时 `un.RemoveFromUserPath` 精确移除，开始菜单新增「VOSR2 Lite CLI」快捷方式。此前 CLI 只能用全路径调用，与 TTS 的 `tts-multimodel` 体验不一致。应用版本 0.4.2 → 0.4.3；壳 1.0.1 不变。GOTCHAS #52。
+
 ## [0.4.2] - 2026-11-22
 
 ### Fixed

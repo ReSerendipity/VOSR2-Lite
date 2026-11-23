@@ -1,8 +1,8 @@
 {
   "name": "VOSR2-Lite",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "channel": "stable",
   "release_date": "2026-11-22",
   "minimum_shell_version": "1.0.0",
-  "changelog": "0.4.2：移除误入 LFS 的构建产物 VOSR2Lite-Data.7z.001，修复 Release workflow 的 git archive LFS 404（v0.4.0/v0.4.1 因此未能创建 draft Release）。0.4.1：补 CLI 单测修复覆盖率门禁。0.4.0：更新路线收敛为单一完整安装包（官网与检查更新同拿 Setup.exe，SHA256 校验后 /S 覆盖安装，用户数据全保留）；新增统一 CLI（restore/models/system/history，Result 信封 + JSON 输出 + 语义退出码，可 --server-url 复用常驻服务）；修复 vendored vosr 的 print 污染 CLI JSON stdout。"
+  "changelog": "0.4.3：桌面 CLI 注册当前用户 PATH，新开终端可直接敲 vosr2；卸载时精确移除；开始菜单新增 CLI 快捷方式。0.4.2：移除误入 LFS 的构建产物 VOSR2Lite-Data.7z.001，修复 Release workflow 的 git archive LFS 404（v0.4.0/v0.4.1 因此未能创建 draft Release）。0.4.1：补 CLI 单测修复覆盖率门禁。0.4.0：更新路线收敛为单一完整安装包（官网与检查更新同拿 Setup.exe，SHA256 校验后 /S 覆盖安装，用户数据全保留）；新增统一 CLI（restore/models/system/history，Result 信封 + JSON 输出 + 语义退出码，可 --server-url 复用常驻服务）；修复 vendored vosr 的 print 污染 CLI JSON stdout。"
 }
