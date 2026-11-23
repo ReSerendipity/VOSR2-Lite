@@ -119,17 +119,18 @@ jobs:
           cat > "${NOTES}" <<EOF
           # VOSR2-Lite v${version}
 
-          VOSR2-Lite 独立图像超分辨率工具箱发布包（tracked 源码 + 完整性清单）。
+          VOSR2-Lite 独立图像超分辨率工具箱发布包（桌面安装包 + tracked 源码 + 完整性清单）。
 
-          > 本 Release 为 **draft**：由 \`release.yml\` 自动创建，经人工审核后手动发布。
           > 资产不可变：已发布资产不会被覆盖，需要修复请发新版本。
 
           ## 资产清单与校验
 
           | 资产 | 说明 |
           |---|---|
+          | \`VOSR2Lite-Setup-v${version}.exe\` | **普通用户主分发物**：单文件安装包（由 \`desktop-installer.yml\` 另挂在同 tag） |
+          | \`VOSR2Lite-Setup-v${version}.exe.sha256\` / \`.provenance.json\` | 安装包校验和与构建溯源 |
           | \`VOSR2-Lite-v${version}.zip\` | tracked 源码包（\`git archive\`；模型权重不入包） |
-          | \`SHA256SUMS.txt\` | zip 的 SHA-256 校验和 |
+          | \`SHA256SUMS.txt\` | 源码 zip 的 SHA-256 校验和 |
           | \`VOSR2-Lite-v${version}-sbom.cdx.json\` | CycloneDX SBOM（基于 \`requirements.txt\`） |
           |（Release 页 SLSA provenance） | \`actions/attest-build-provenance\` 绑定 zip digest |
 
@@ -139,18 +140,39 @@ jobs:
           sha256sum -c SHA256SUMS.txt
           \`\`\`
 
-          ## 安装步骤
+          ## 桌面版安装（推荐）
+
+          1. 下载 \`VOSR2Lite-Setup-v${version}.exe\` 并双击安装；覆盖安装保留历史、模型与已装环境。
+          2. 首次启动进入「下载管理」页，按需安装运行环境（torch cu128）与模型权重。
+          3. 装完手动重开即可使用；「检查更新」下载的是同一个完整安装包，SHA256 校验后静默覆盖安装。
+
+          ### 桌面版 CLI
+
+          安装包附带命令行入口 \`vosr2.cmd\`（位于安装目录，**未注册 PATH**，用全路径调用）：
+
+          \`\`\`bat
+          "%LOCALAPPDATA%\\Programs\\VOSR2Lite\\vosr2.cmd" --help
+          "%LOCALAPPDATA%\\Programs\\VOSR2Lite\\vosr2.cmd" models status --json
+          "%LOCALAPPDATA%\\Programs\\VOSR2Lite\\vosr2.cmd" restore -i photo.jpg -o outputs -u 4
+          \`\`\`
+
+          命令族：\`restore\`（单图/批量）、\`models status\`、\`system status\`、\`history list/show\`。
+          \`--json\` 输出稳定 JSON 信封，退出码 0/1/2/3，供脚本与 AI agent 自动化调用。
+          需先在程序内「下载管理」页装好运行环境（引导解释器不含 torch）。
+
+          ## 源码安装（开发者）
 
           1. 下载 \`VOSR2-Lite-v${version}.zip\`，先执行上方 SHA-256 校验。
           2. 解压，按 README「快速上手」安装依赖：\`pip install -r requirements.txt\`
              （torch 需 CUDA 版 cu128，RTX 50 系必须，见 README）。
           3. 下载模型权重（不入包）：\`python scripts/download_model.py\`（约 6.6 GB，仅权重）。
-          4. 启动：双击 \`start.bat\`，浏览器打开 http://127.0.0.1:7871。
+          4. 启动：双击 \`start.bat\`，浏览器打开 http://127.0.0.1:7871；
+             CLI 用法 \`python -m app.integrated_app.cli --help\`（详见 \`docs/用户手册.md\` §10）。
 
           ## 回滚
 
-          - 若该版本异常：**重新下载上一个 tag 的 Release 资产**（\`v${PREV_TAG:-<更早的 v* tag>}\`），
-            校验 SHA-256 后替换安装目录；若本 draft 尚未发布，直接放弃本 draft 即可。
+          - 若该版本异常：**重新下载上一个 tag 的 Release 资产**（\`${PREV_TAG:-<更早的 v* tag>}\`），
+            校验 SHA-256 后替换安装目录（\`PREV_TAG\` 已含 \`v\` 前缀，勿重复拼接）。
           - 发布资产不可变：不要覆盖既有资产，修复请走新版本。
           - 回滚后验证：\`python scripts/smoke_infer.py -i <test.png> -o outputs/\` 跑通一次真实推理。
 
