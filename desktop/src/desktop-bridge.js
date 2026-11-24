@@ -202,7 +202,7 @@
       ensureDialog();
       var body = document.getElementById("vdu-body");
       var actions = document.getElementById("vdu-actions");
-      if (body) body.innerHTML = '<div style="color:#27ae60;font-weight:600;font-size:16px;text-align:center;padding:20px 0">✓ ' + escapeHtml((r && r.message) || "安装程序即将启动，应用会关闭；安装完成后请重新启动 VOSR2 Lite。") + "</div>";
+      if (body) body.innerHTML = '<div style="color:#27ae60;font-weight:600;font-size:16px;text-align:center;padding:20px 0">✓ ' + escapeHtml((r && r.message) || "应用即将关闭，安装程序将自动完成更新并重新启动。") + "</div>";
       if (actions) actions.innerHTML = "";
       if (dlgEl) dlgEl.style.display = "flex";
     });
