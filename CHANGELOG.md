@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-11-24
+
+### Added
+
+* **desktop**: 补齐桌面自更新第七步——安装完自动重启应用。更新器传 `/S /RELAUNCH` 静默安装并有序退出，NSIS 用 `$CMDLINE` + `StrStr` 检测标志后 `Exec` 拉起主程序，实现「点一下 → 退出 → 自动安装 → 自动回来」闭环；前端 `update-installing` 提示改为自动重启，新增 4 项契约测试与 CI 端到端验收 workflow（runner 内网取包）。应用版本 0.4.3 → 0.4.4；壳 1.0.1 不变。
+
 ## [0.4.3] - 2026-11-23
 
 ### Changed
